@@ -40,7 +40,7 @@ LGFX_ESP32_2432S028 lcd;
 // ==========================================
 #define SCREEN_WIDTH  240
 #define SCREEN_HEIGHT 320
-
+static void menu_click_cb(lv_event_t * e);
 
 
 
@@ -60,9 +60,14 @@ lv_obj_t * label_current ;
 lv_obj_t * label_capacity ;
 lv_obj_t * label_chg_limit ;
 lv_obj_t * label_dchg_limit ;
+lv_obj_t * label_cells_footer;
+lv_obj_t * label_temp_mos;
+lv_obj_t * label_temp_board;
+lv_obj_t * label_temp_chip; 
 lv_obj_t * sw_charge ;
 lv_obj_t * sw_discharge ;
 lv_obj_t * sw_autodim ;
+
 // สมาชิกหน้า 2 (Cells)
 lv_obj_t * label_high_val ;
 lv_obj_t * label_low_val ;
@@ -166,26 +171,7 @@ void processFinishedLine(String line) {
     } 
     else if (line == "jhstop") {
         Serial.println("\n[BMS] --- อัปเดตข้อมูลแพ็กเก็ตใหม่สำเร็จ ---");
-        Serial.printf("แรงดันรวม: %.2f V | SoC: %d %%\n", battery.totalVoltage, battery.stateOfCharge);
-
-        // 1. อัปเดตค่าเกจวงกลม และข้อความตรงกลาง
-        if(arc_soc) lv_arc_set_value(arc_soc, battery.stateOfCharge);
-        if(label_soc_text) lv_label_set_text(label_soc_text, (String(battery.stateOfCharge) + "%").c_str()); 
-
-        // 2. อัปเดตกล่องโวลต์และกระแส
-        if(label_voltage) lv_label_set_text(label_voltage, (String(battery.totalVoltage, 2) + "V").c_str());
-        if(label_current) lv_label_set_text(label_current, (String(battery.currentAmps, 1) + " A").c_str());
-
-        // 3. อัปเดตแรงดันรายเซลล์ C1-C4 (แก้ไขบั๊กเพิ่มจุดสร้างข้อความเรียลไทม์)
-        if(label_cells_footer) {
-            String cells_str = "C1: " + String(battery.cell1, 3) + "V  C2: " + String(battery.cell2, 3) + "V\n" +
-                               "C3: " + String(battery.cell3, 3) + "V  C4: " + String(battery.cell4, 3) + "V";
-            lv_label_set_text(label_cells_footer, cells_str.c_str());
-        }
-
-        // 4. อัปเดตอุณหภูมิแยกชิ้นตามโครงสร้างจริงบนจอ
-        if(label_temp_mos) lv_label_set_text(label_temp_mos, ("MOS: " + String(battery.mosfetTemp, 1) + "°C").c_str());
-        if(label_temp_board) lv_label_set_text(label_temp_board, ("BAL: " + String(battery.boardTemp, 1) + "°C").c_str());
+        
     }
 }
 
@@ -702,7 +688,7 @@ void setup() {
 
     Serial.println("[System] เปิดสัญญาณเสาบลูทูธ ESP32...");
     NimBLEDevice::init("ESP32_BMS_Gateway");
-    NimBLEDevice::setPower(9); 
+    NimBLEDevice::setPower(3); 
 
     NimBLEScan* pNimBLEScan = NimBLEDevice::getScan();
     pNimBLEScan->setScanCallbacks(new AdvertisedDeviceCallbacks(), false);
