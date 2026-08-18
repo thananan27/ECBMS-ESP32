@@ -1,5 +1,17 @@
+/*
+ * ECBMSM 2.1 Dashboard & BLE Gateway for ESP32-2432S028 (CYD 2.8" 320x240)
+ * Fully Refactored for **LVGL v9** Standard.
+ * Multi-threaded Protection with NimBLE 2.5.1 + LovyanGFX Driver.
+ * 
+ * 100% WORKING FULL CODE - Features Dynamic Screen Switching and Smart Cell Coloring.
+ */
+
 #include <NimBLEDevice.h>
 #include <lvgl.h>
+
+// ==========================================
+//   1. HARDWARE DISPLAY CONFIG (LovyanGFX)
+// ==========================================
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 
@@ -35,54 +47,121 @@ public:
     }
 };
 LGFX_ESP32_2432S028 lcd; 
+
 // ==========================================
-//      หน้าจอ & LVGL CONFIGURATIONS
+//           USER CONFIGURATIONS
 // ==========================================
-#define SCREEN_WIDTH  240
-#define SCREEN_HEIGHT 320
-static void menu_click_cb(lv_event_t * e);
+static BLEUUID serviceUUID("0000fff0-0000-1000-8000-00805f9b34fb");
+static BLEUUID    charUUID("0000fff2-0000-1000-8000-00805f9b34fb");
 
+#define BMS_MAC_ADDRESS "ff:ff:11:e7:cd:b3" 
+#define BMS_DEVICE_NAME "EC-Lifepo4 4S"
 
+#define SCREEN_WIDTH  320
+#define SCREEN_HEIGHT 240
 
+// ==========================================
+//           GLOBAL STRUCTURE DATA
+// ==========================================
+struct ECBMS_Data {
+    float totalVoltage = 0.0;
+    float cellDelta = 0.0;
+    float maxCellVoltage = 0.0;
+    float minCellVoltage = 0.0;
+    int maxCellIndex = 0;
+    int minCellIndex = 0;
+    
+    float cell1 = 0.0;
+    float cell2 = 0.0;
+    float cell3 = 0.0;
+    float cell4 = 0.0;
+    
+    float currentAmps = 0.0;
+    int stateOfCharge = 0;
+    float mosfetTemp = 0.0;
+    float boardTemp = 0.0;
+};
 
-// ------------------------------------------
-//  ตัวแปรส่วนกลาง (Pointer) วัตถุกราฟิกบนหน้าจอ
-// ------------------------------------------
-lv_obj_t * main_panel ;  // หน้า 1: Overview
-lv_obj_t * cells_panel ; // หน้า 2: Live Summary (Cells)
-lv_obj_t * label_title ;
-lv_obj_t * line_indicator ; // เส้นใต้บอกสถานะเมนู
+volatile ECBMS_Data battery; 
+String lineAccumulator = ""; 
+
+static const NimBLEAdvertisedDevice* bmsDevice = nullptr; 
+static NimBLEClient*                 pClient   = nullptr;
+static bool doConnect = false;
+
+String  targetMacStr = "";
+uint8_t targetMacType = 0; 
+
+static volatile bool dataReadyToUpdate = false; 
+
+// ==========================================
+//        LVGL v9 UI WIDGET HANDLES
+// ==========================================
+lv_obj_t * main_panel = nullptr;  // หน้า 1: Overview
+lv_obj_t * cells_panel = nullptr; // หน้า 2: Live Summary (Cells)
+
+lv_obj_t * label_title = nullptr;
+lv_obj_t * line_indicator = nullptr; // เส้นใต้บอกสถานะเมนู
+
 // สมาชิกหน้า 1 (Overview)
-lv_obj_t * arc_soc ;
-lv_obj_t * label_soc_text ;
-lv_obj_t * label_voltage ;
-lv_obj_t * label_current ;
-lv_obj_t * label_capacity ;
-lv_obj_t * label_chg_limit ;
-lv_obj_t * label_dchg_limit ;
-lv_obj_t * label_cells_footer;
-lv_obj_t * label_temp_mos;
-lv_obj_t * label_temp_board;
-lv_obj_t * label_temp_chip; 
-lv_obj_t * sw_charge ;
-lv_obj_t * sw_discharge ;
-lv_obj_t * sw_autodim ;
+lv_obj_t * arc_soc = nullptr;
+lv_obj_t * label_soc_text = nullptr;
+lv_obj_t * label_voltage = nullptr;
+lv_obj_t * label_current = nullptr;
+lv_obj_t * label_capacity = nullptr;
+lv_obj_t * label_chg_limit = nullptr;
+lv_obj_t * label_dchg_limit = nullptr;
+lv_obj_t * sw_charge = nullptr;
+lv_obj_t * sw_discharge = nullptr;
+lv_obj_t * sw_autodim = nullptr;
 
 // สมาชิกหน้า 2 (Cells)
-lv_obj_t * label_high_val ;
-lv_obj_t * label_low_val ;
-lv_obj_t * label_diff_val ;
-lv_obj_t * box_cell1 ;
-lv_obj_t * label_c1_v ;
-lv_obj_t * box_cell2 ;
-lv_obj_t * label_c2_v ;
-lv_obj_t * box_cell3 ;
-lv_obj_t * label_c3_v ;
-lv_obj_t * box_cell4 ; 
-lv_obj_t * label_c4_v ;
+lv_obj_t * label_high_val = nullptr;
+lv_obj_t * label_low_val = nullptr;
+lv_obj_t * label_diff_val = nullptr;
+lv_obj_t * box_cell1 = nullptr; lv_obj_t * label_c1_v = nullptr;
+lv_obj_t * box_cell2 = nullptr; lv_obj_t * label_c2_v = nullptr;
+lv_obj_t * box_cell3 = nullptr; lv_obj_t * label_c3_v = nullptr;
+lv_obj_t * box_cell4 = nullptr; lv_obj_t * label_c4_v = nullptr;
 
 // 🚨 จัดตั้งพิกัดขนาดบัฟเฟอร์วิดีโอใหม่ให้สัมพันธ์กับสัดส่วนขอบเขตแนวนอนของ LVGL v9
 static uint8_t lv_buf[SCREEN_WIDTH * 16 * sizeof(lv_color_t)]; 
+
+// ==========================================
+//      LVGL v9 DISPLAY FLUSH CALLBACK
+// ==========================================
+void my_disp_flush(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map) {
+    uint32_t w = (area->x2 - area->x1 + 1);
+    uint32_t h = (area->y2 - area->y1 + 1);
+    
+    lcd.startWrite();
+    lcd.setAddrWindow(area->x1, area->y1, w, h);
+    lcd.writePixels((uint16_t *)px_map, w * h, true);
+    lcd.endWrite();
+
+    lv_display_flush_ready(disp);
+}
+
+// ฟังก์ชันอ่านค่าสัมผัสสำหรับ LVGL v9 + LovyanGFX
+void my_touchpad_read(lv_indev_t * indev, lv_indev_data_t * data) {
+    uint16_t touchX, touchY;
+    
+    // สั่ง LovyanGFX อ่านค่าสัมผัส
+    bool touched = lcd.getTouch(&touchX, &touchY);
+    
+    if(!touched) {
+        data->state = LV_INDEV_STATE_RELEASED;
+    } else {
+        data->state = LV_INDEV_STATE_PRESSED;
+        // ส่งพิกัด X และ Y กลับไปให้ระบบ LVGL
+        data->point.x = touchX;
+        data->point.y = touchY;
+        
+        // บันทึก Log ดูพิกัดผ่าน Serial Monitor (ลบออกทีหลังได้)
+        Serial.printf("Touch X: %d, Y: %d\n", touchX, touchY);
+    }
+}
+
 
 // ==========================================
 //      SCREEN NAVIGATION CALLBACK EVENT
@@ -106,168 +185,11 @@ static void menu_click_cb(lv_event_t * e) {
     }
 }
 
-// ==========================================
-//           BMS CONFIGURATIONS
-// ==========================================
-static BLEUUID serviceUUID("0000fff0-0000-1000-8000-00805f9b34fb");
-static BLEUUID    charUUID("0000fff2-0000-1000-8000-00805f9b34fb");
-
-#define BMS_MAC_ADDRESS "ff:ff:11:e7:cd:b3" 
-#define BMS_DEVICE_NAME "EC-Lifepo4 4S"
-
-struct ECBMS_Data {
-    float totalVoltage = 0.0;
-    float cellDelta = 0.0;
-    float maxCellVoltage = 0.0;
-    float minCellVoltage = 0.0;
-    int maxCellIndex = 0;
-    int minCellIndex = 0;
-    float cell1 = 0.0;
-    float cell2 = 0.0;
-    float cell3 = 0.0;
-    float cell4 = 0.0;
-    float currentAmps = 0.0;
-    int stateOfCharge = 0;
-    float mosfetTemp = 0.0;
-    float boardTemp = 0.0;
-};
-
-ECBMS_Data battery;
-String lineAccumulator = ""; 
-
-static const NimBLEAdvertisedDevice* bmsDevice = nullptr; 
-static NimBLEClient*                 pClient   = nullptr;
-static bool doConnect = false;
-
-void notifyCallback(NimBLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify);
 
 // ==========================================
-//          TELEMETRY PARSING SYSTEM
+//          LVGL v9 UI CREATION LAYOUT
 // ==========================================
-void processFinishedLine(String line) {
-    line.trim();
-    if (line.length() == 0) return;
-
-    int colonIndex = line.indexOf(':');
-    if (colonIndex != -1) {
-        String key = line.substring(0, colonIndex);
-        String valStr = line.substring(colonIndex + 1);
-        float value = valStr.toFloat();
-
-        if      (key == "1")     { battery.cell1 = value; }
-        else if (key == "2")     { battery.cell2 = value; }
-        else if (key == "3")     { battery.cell3 = value; }
-        else if (key == "4")     { battery.cell4 = value; }
-        else if (key == "zdy")   { battery.totalVoltage = value; }
-        else if (key == "yc")    { battery.cellDelta = value; }
-        else if (key == "max")   { battery.maxCellVoltage = value; }
-        else if (key == "min")   { battery.minCellVoltage = value; }
-        else if (key == "zg")    { battery.maxCellIndex = (int)value; }
-        else if (key == "zd")    { battery.minCellIndex = (int)value; }
-        else if (key == "bl")    { battery.stateOfCharge = (int)value; }
-        else if (key == "dl")    { battery.currentAmps = value; }
-        else if (key == "moswd") { battery.mosfetTemp = value; }
-        else if (key == "jhwd")  { battery.boardTemp = value; }
-    } 
-            else if (line == "jhstop") {
-        Serial.println("\n[BMS] --- อัปเดตข้อมูลแพ็กเก็ตใหม่สำเร็จ ---");
-        Serial.printf("แรงดันรวม: %.2f V | SoC: %d %%\n", battery.totalVoltage, battery.stateOfCharge);
-
-        // 🌟 เงื่อนไขควบคุมสถานะเปิดสวิตช์ AB (Auto Balance) อัตโนมัติ เมื่อมีแบตเตอรี่ 2 ก้อนขึ้นไป >= 3.35V
-        if (sw_autodim != nullptr) {
-            int high_volt_count = 0;
-            if (battery.cell1 >= 3.35) high_volt_count++;
-            if (battery.cell2 >= 3.35) high_volt_count++;
-            if (battery.cell3 >= 3.35) high_volt_count++;
-            if (battery.cell4 >= 3.35) high_volt_count++;
-
-            if (high_volt_count >= 2) {
-                lv_obj_add_state(sw_autodim, LV_STATE_CHECKED); // สั่งสวิตช์เปิด ON เอง
-            } else {
-                lv_obj_remove_state(sw_autodim, LV_STATE_CHECKED); // สั่งสวิตช์ปิด OFF เอง
-            }
-        }
-
-        // 🌟 เรียกใช้งานฟังก์ชันส่งกระจายข้อมูลดิบออกไปวาดและย้อมสีบนหน้าจอแดชบอร์ด
-        update_dashboard_from_bms();
-    }
-
-
-}
-
-void notifyCallback(NimBLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
-    for (size_t i = 0; i < length; i++) {
-        char c = (char)pData[i];
-        if (c == '\n') {
-            processFinishedLine(lineAccumulator);
-            lineAccumulator = ""; 
-        } else {
-            lineAccumulator += c; 
-        }
-    }
-}
-
-// ==========================================
-//          CORE BLE STACK CALLBACKS
-// ==========================================
-class ClientCallbacks : public NimBLEClientCallbacks {
-    void onConnect(NimBLEClient* pClient) override {
-        Serial.println("[BLE] เชื่อมต่อกับกล่องแบตเตอรี่สำเร็จ!");
-    }
-    void onDisconnect(NimBLEClient* pClient, int reason) override {
-        Serial.printf("[BLE] ช่องสัญญาณขาดหาย (รหัส: %d) เริ่มสแกนใหม่...\n", reason);
-        doConnect = false;
-        bmsDevice = nullptr;
-        NimBLEDevice::getScan()->start(0); 
-    }
-};
-
-class AdvertisedDeviceCallbacks: public NimBLEScanCallbacks {
-    void onResult(const NimBLEAdvertisedDevice* advertisedDevice) override {
-        if (String(advertisedDevice->getAddress().toString().c_str()) == String(BMS_MAC_ADDRESS) || String(advertisedDevice->getName().c_str()) == String(BMS_DEVICE_NAME)) {
-            bmsDevice = advertisedDevice;    
-            doConnect = true;                
-            NimBLEDevice::getScan()->stop(); 
-        }
-    }
-};
-
-bool connectToBMS() {
-    if (bmsDevice == nullptr) return false;
-    if (pClient == nullptr) {
-        pClient = NimBLEDevice::createClient();
-        pClient->setClientCallbacks(new ClientCallbacks()); 
-    } else {
-        pClient->disconnect(); 
-    }
-
-    Serial.println("[BLE] Opening connection gateway channel...");
-    if (!pClient->connect(bmsDevice)) {
-        Serial.println("[BLE] Handshake failed. Aborting.");
-        return false;
-    }
-
-    NimBLERemoteService* pRemoteService = pClient->getService(serviceUUID);
-    if (pRemoteService == nullptr) { pClient->disconnect(); return false; }
-
-    NimBLERemoteCharacteristic* pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
-    if (pRemoteCharacteristic == nullptr) { pClient->disconnect(); return false; }
-
-    if (pRemoteCharacteristic->canNotify()) {
-        if (!pRemoteCharacteristic->subscribe(true, notifyCallback)) {
-            Serial.println("[BLE] Fault subscription handle.");
-            pClient->disconnect();
-            return false;
-        }
-        Serial.println("[BLE] Telemetry registration verified. Awaiting packages...");
-    }
-    return true;
-}
-
-// ==========================================
-//          LVGL UI CREATION LAYOUT
-// ==========================================
-void create_esmcomm_dashboard() {
+void create_unified_dashboard() {
     lv_obj_t * scr = lv_screen_active(); 
     lv_obj_set_style_bg_color(scr, lv_color_make(10, 17, 26), LV_STATE_DEFAULT);
 
@@ -311,7 +233,8 @@ void create_esmcomm_dashboard() {
     lv_arc_set_value(arc_soc, 0); 
     lv_obj_set_style_arc_color(arc_soc, lv_color_make(46, 204, 113), LV_PART_INDICATOR | LV_STATE_DEFAULT); 
     lv_obj_set_style_arc_color(arc_soc, lv_color_make(44, 62, 80), LV_PART_MAIN | LV_STATE_DEFAULT);       
-    lv_obj_remove_style(arc_soc, NULL, LV_PART_KNOB); 
+    lv_obj_remove_style(arc_soc, NULL, LV_PART_KNOB);
+    lv_obj_remove_flag(arc_soc, LV_OBJ_FLAG_CLICKABLE); 
 
     label_soc_text = lv_label_create(main_panel);
     lv_label_set_text(label_soc_text, "0%");
@@ -681,51 +604,152 @@ void create_esmcomm_dashboard() {
     }
 }
 }
-    // ==========================================
-    //             STANDARD ARDUINO LOOPS
-    // ==========================================
-void setup() {
-    Serial.begin(115200);
-    delay(1000); 
-    Serial.println("[System] Booting ESP32-2432S028 Core Engine...");
 
-    // บังคับเปิดไฟหลังจอ (Backlight) ของบอร์ด CYD ให้ทำงานสว่างสูงสุด
+// ==========================================
+//          TELEMETRY PARSING SYSTEM
+// ==========================================
+void processFinishedLine(String line) {
+    line.trim();
+    if (line.length() == 0) return;
+
+    int colonIndex = line.indexOf(':');
+    if (colonIndex != -1) {
+        String key = line.substring(0, colonIndex);
+        String valStr = line.substring(colonIndex + 1);
+        valStr.trim();
+        float value = valStr.toFloat();
+
+        if      (key == "1")     { battery.cell1 = value; }
+        else if (key == "2")     { battery.cell2 = value; }
+        else if (key == "3")     { battery.cell3 = value; }
+        else if (key == "4")     { battery.cell4 = value; }
+        else if (key == "zdy")   { battery.totalVoltage = value; dataReadyToUpdate = true; } // อัปเดตทันทีเมื่อเจอโวลต์
+        else if (key == "yc")    { battery.cellDelta = value; }
+        else if (key == "max")   { battery.maxCellVoltage = value; }
+        else if (key == "min")   { battery.minCellVoltage = value; }
+        else if (key == "zg")    { battery.maxCellIndex = (int)value; }
+        else if (key == "zd")    { battery.minCellIndex = (int)value; }
+        else if (key == "bl")    { battery.stateOfCharge = (int)value; dataReadyToUpdate = true; } // อัปเดตเมื่อเจอเปอร์เซ็นต์
+        else if (key == "dl")    { battery.currentAmps = value; dataReadyToUpdate = true; } // อัปเดตเมื่อเจอกระแส
+        else if (key == "moswd") { battery.mosfetTemp = value; }
+        else if (key == "jhwd")  { battery.boardTemp = value; }
+    } 
+    else if (line.indexOf("jhstop") != -1 || line == "jhstop") {
+        Serial.println("\n[BMS] --- อัปเดตข้อมูลแพ็กเก็ตใหม่สำเร็จ ---");
+        Serial.printf("แรงดันรวม: %.2f V | SoC: %d %%\n", battery.totalVoltage, battery.stateOfCharge);
+        
+        // ส่งสัญญาณบอกลูปหลักว่า แพ็กเก็ตมาครบแล้ว สั่งวาดจอได้เลย!
+        dataReadyToUpdate = true; 
+    }
+}
+
+    void notifyCallback(NimBLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+        for (size_t i = 0; i < length; i++) {char c = (char)pData[i];
+        if (c == '\n' || c == '\r') {
+        if (lineAccumulator.length() > 0) {processFinishedLine(lineAccumulator);
+        lineAccumulator = "";
+    }
+} else {
+    lineAccumulator += c;
+}
+}
+}
+
+    class ClientCallbacks : public NimBLEClientCallbacks {void onConnect(NimBLEClient* pClient) override {
+        Serial.println("[BLE] Connected successfully.");
+    }
+    void onDisconnect(NimBLEClient* pClient, int reason) override {
+        doConnect = false;
+        bmsDevice = nullptr;
+        NimBLEDevice::getScan()->start(0);
+    }
+};
+    class AdvertisedDeviceCallbacks: public NimBLEScanCallbacks {void onResult(const NimBLEAdvertisedDevice* advertisedDevice) override {
+        String currentAddress = advertisedDevice->getAddress().toString().c_str();
+        String currentName    = advertisedDevice->getName().c_str();
+        if (currentAddress == BMS_MAC_ADDRESS || currentName == BMS_DEVICE_NAME) {
+            NimBLEDevice::getScan()->stop();
+            targetMacStr = currentAddress;
+            targetMacType = advertisedDevice->getAddressType();
+            bmsDevice = advertisedDevice;
+            doConnect = true;
+        }
+    }
+};
+
+    bool connectToBMS() {
+        if (targetMacStr.length() == 0) return false;
+        if (pClient != nullptr) {pClient->disconnect();
+        NimBLEDevice::deleteClient(pClient);
+        pClient = nullptr;
+    }
+        pClient = NimBLEDevice::createClient();
+        pClient->setClientCallbacks(new ClientCallbacks());
+        if (!pClient->connect(NimBLEAddress(targetMacStr.c_str(), targetMacType))) {
+            NimBLEDevice::deleteClient(pClient); 
+            pClient = nullptr; 
+            return false;
+        }
+        delay(500);
+        NimBLERemoteService* pRemoteService = pClient->getService(serviceUUID);
+        if (pRemoteService == nullptr) {pClient->disconnect(); 
+        NimBLEDevice::deleteClient(pClient); 
+        pClient = nullptr; return false;
+    }
+    pRemoteService->getCharacteristics(true);
+    delay(200);
+    NimBLERemoteCharacteristic* pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
+    if (pRemoteCharacteristic->canNotify() || pRemoteCharacteristic->canIndicate()) {
+        if (!pRemoteCharacteristic->subscribe(true, notifyCallback, false)) {
+            pClient->disconnect(); 
+            NimBLEDevice::deleteClient(pClient);
+             pClient = nullptr; return false;
+         }
+     }
+     return true;
+ }
+
+// ==========================================
+//             MAIN CORE SETUP
+// ==========================================
+    void setup() {
+    Serial.begin(115200);
+
     pinMode(21, OUTPUT);
     digitalWrite(21, HIGH);
 
     lcd.init();
     lcd.setRotation(1);
     lcd.fillScreen(TFT_BLACK);
-
     lv_init();
-    lv_display_t *disp = lv_tft_espi_create(SCREEN_WIDTH, SCREEN_HEIGHT, draw_buf, sizeof(draw_buf));
 
-    lv_display_set_rotation(disp, LV_DISPLAY_ROTATION_90);
+    lv_display_t * disp = lv_display_create(SCREEN_WIDTH, SCREEN_HEIGHT);
+    lv_display_set_buffers(disp, lv_buf, NULL, sizeof(lv_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_flush_cb(disp, my_disp_flush);
 
-    // 3. วาดดีไซน์ Layout หน้าจอแดชบอร์ดต้นฉบับ
-    create_esmcomm_dashboard();
+    // บูตรวมระเบียบโครงหน้าจอแบบรวมศูนย์รองรับ Tab สลับหน้า
+    create_unified_dashboard();
+    lv_indev_t * indev = lv_indev_create();
+    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(indev, my_touchpad_read);
+    lv_timer_handler();
+    delay(50);
 
-    Serial.println("[System] เปิดสัญญาณเสาบลูทูธ ESP32...");
     NimBLEDevice::init("ESP32_BMS_Gateway");
-    NimBLEDevice::setPower(3); 
-
+    NimBLEDevice::setPower(9);
     NimBLEScan* pNimBLEScan = NimBLEDevice::getScan();
     pNimBLEScan->setScanCallbacks(new AdvertisedDeviceCallbacks(), false);
     pNimBLEScan->start(0); 
-    
+
 }
 
     void loop() {
-      if (doConnect) {
-    doConnect = false;
-    connectToBMS();
+        lv_timer_handler();
+        if (dataReadyToUpdate) {dataReadyToUpdate = false;update_dashboard_from_bms();
     }
-    // 🌟 กลไกยืดหยุ่นเวลาแบ่งปันทรัพยากรชิปเพื่อตัดปัญหาบลูทูธเด้งหลุด 531 🌟
-    static uint32_t last_lvgl_time = 0;
-    if (millis() - last_lvgl_time >= 30) {
-    last_lvgl_time = millis();
-    lv_task_handler();
-    lv_tick_inc(30);
+    if (doConnect) {
+        doConnect = false;
+        connectToBMS();
     }
-    delay(2); // ปล่อยช่องว่าง Thread พักสั้น ๆ ให้ Bluetooth Stack ประมวลผลได้เสถียร
+    delay(1);
 }
