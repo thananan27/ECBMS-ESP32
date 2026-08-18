@@ -16,15 +16,16 @@
 #include <LovyanGFX.hpp>
 
 class LGFX_ESP32_2432S028 : public lgfx::LGFX_Device {
-    lgfx::Panel_ILI9341 _panel_instance;
-    lgfx::Bus_SPI       _bus_instance;
+    lgfx::Panel_ILI9341  _panel_instance;
+    lgfx::Bus_SPI        _bus_instance;
+    lgfx::Touch_XPT2046  _touch_instance; // 🚨 1. เพิ่มตัวแปรสำหรับชิปสัมผัส XPT2046
 public:
     LGFX_ESP32_2432S028() {
         {
             auto cfg = _bus_instance.config();
             cfg.spi_host = VSPI_HOST;
             cfg.spi_mode = 0;
-            cfg.freq_write = 20000000; 
+            cfg.freq_write = 20000000;
             cfg.pin_sclk = 14;
             cfg.pin_mosi = 13;
             cfg.pin_miso = 12;
@@ -34,18 +35,40 @@ public:
         }
         {
             auto cfg = _panel_instance.config();
-            cfg.pin_cs           = 15;
-            cfg.pin_rst          = -1;
-            cfg.panel_width      = 240; 
-            cfg.panel_height     = 320;
-            cfg.offset_x         = 0;
-            cfg.offset_y         = 0;
-            cfg.offset_rotation  = 2; // บังคับแสดงผลแนวนอน
+            cfg.pin_cs     = 15;
+            cfg.pin_rst    = -1;
+            cfg.panel_width  = 240;
+            cfg.panel_height = 320;
+            cfg.offset_x     = 0;
+            cfg.offset_y     = 0;
+            cfg.offset_rotation = 2; // บังคับแสดงผลแนวนอน
             _panel_instance.config(cfg);
+        }
+                {
+            // บล็อกตั้งค่าระบบสัมผัส
+            auto cfg = _touch_instance.config();
+            cfg.x_min      = 300;
+            cfg.x_max      = 3900;
+            cfg.y_min      = 200;
+            cfg.y_max      = 3700;
+            cfg.pin_int    = 36;       
+            cfg.bus_shared = false;    
+            
+            // 🚨 เพิ่มบรรทัดนี้เข้าไป เพื่อบังคับหมุนทิศทางพิกัดสัมผัสให้เท่ากับหน้าจอหลัก
+            cfg.offset_rotation = 2; 
+
+            cfg.spi_host   = HSPI_HOST; 
+            cfg.pin_sclk   = 25;       
+            cfg.pin_mosi   = 32;       
+            cfg.pin_miso   = 39;       
+            cfg.pin_cs     = 33;       
+            _touch_instance.config(cfg);
+            _panel_instance.setTouch(&_touch_instance); 
         }
         setPanel(&_panel_instance);
     }
 };
+
 LGFX_ESP32_2432S028 lcd; 
 
 // ==========================================
@@ -100,6 +123,9 @@ lv_obj_t * main_panel = nullptr;  // หน้า 1: Overview
 lv_obj_t * cells_panel = nullptr; // หน้า 2: Live Summary (Cells)
 lv_obj_t * label_title = nullptr;
 lv_obj_t * line_indicator = nullptr; // เส้นใต้บอกสถานะเมนู
+lv_obj_t * btn_overview = nullptr;
+lv_obj_t * btn_summary = nullptr;
+
 // สมาชิกหน้า 1 (Overview)
 lv_obj_t * arc_soc = nullptr;
 lv_obj_t * label_soc_text = nullptr;
@@ -139,27 +165,56 @@ void my_disp_flush(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map
     lv_display_flush_ready(disp);
 }
 
+// ฟังก์ชันสำหรับดักจับตำแหน่งที่นิ้วกดหน้าจอสัมผัส
+void my_touchpad_read(lv_indev_t * indev, lv_indev_data_t * data) {
+    uint16_t touchX, touchY;
+    bool touched = lcd.getTouch(&touchX, &touchY);
+
+    if(!touched) {
+        data->state = LV_INDEV_STATE_RELEASED;
+    } else {
+        data->state = LV_INDEV_STATE_PRESSED;
+        
+        // 1. แปลงทิศทางแกนตามสูตรเดิมที่ทิศทางตรงแล้ว
+        int rawX = 320 - touchY;
+        int rawY = touchX;
+        
+        // 2. 🚨 ใช้ฟังก์ชัน map เพื่อขยายสเกลพิกัด 4 มุมของคุณ ให้ตรงกับหน้าจอระบบ (320x240) เป๊ะๆ
+        int calX = map(rawX, 76, 297, 0, 320);
+        int calY = map(rawY, 4, 306, 0, 240);
+        
+        // 3. ป้องกันไม่ให้ค่าพิกัดทะลุขอบจอ (จำกัดค่าให้อยู่ในช่วงหน้าจอพอดี)
+        data->point.x = constrain(calX, 0, 319);
+        data->point.y = constrain(calY, 0, 239);
+        
+        // บันทึก Log พิกัดใหม่ที่ผ่านการ Calibrate แล้ว
+        Serial.printf("Final Matched Touch -> X: %d, Y: %d\n", data->point.x, data->point.y);
+    }
+}
+
+
 // ==========================================
 //      SCREEN NAVIGATION CALLBACK EVENT
 // ==========================================
 // ฟังก์ชันตรวจจับการใช้นิ้วกดสัมผัสสลับหน้าจอ (Tab Click)
 static void menu_click_cb(lv_event_t * e) {
     lv_obj_t * target = (lv_obj_t *)lv_event_get_target(e);
-    char * menu_name = lv_label_get_text(target);
-
-    if (strcmp(menu_name, "Overview") == 0) {
+    
+    if (target == btn_overview) {
         lv_label_set_text(label_title, "ESMCOMM 1.0");
-        lv_obj_remove_flag(main_panel, LV_OBJ_FLAG_HIDDEN); // แสดงหน้าหลัก
-        lv_obj_add_flag(cells_panel, LV_OBJ_FLAG_HIDDEN);   // ซ่อนหน้าเซลล์
-        lv_obj_align(line_indicator, LV_ALIGN_BOTTOM_LEFT, 15, 0); // เลื่อนเส้นใต้มาที่เมนู 1
-    } 
-    else if (strcmp(menu_name, "Live Summary") == 0) {
-        lv_label_set_text(label_title, "PACK 01 DETAIL"); 
-        lv_obj_add_flag(main_panel, LV_OBJ_FLAG_HIDDEN);      // ซ่อนหน้าหลัก
-        lv_obj_remove_flag(cells_panel, LV_OBJ_FLAG_HIDDEN);  // แสดงหน้าเซลล์
-        lv_obj_align(line_indicator, LV_ALIGN_BOTTOM_MID, 0, 0);   // เลื่อนเส้นใต้มาที่เมนู 2
+        lv_obj_remove_flag(main_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(cells_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_align(line_indicator, LV_ALIGN_BOTTOM_LEFT, 23, 0); // ระยะพิกัดปุ่ม 1 ใหม่
+    }
+    else if (target == btn_summary) {
+        lv_label_set_text(label_title, "PACK 01 DETAIL");
+        lv_obj_add_flag(main_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(cells_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_align(line_indicator, LV_ALIGN_BOTTOM_MID, 0, 0);  // ระยะพิกัดปุ่ม 2 ใหม่
     }
 }
+
+
 
 // ==========================================
 //          LVGL v9 UI CREATION LAYOUT
@@ -184,7 +239,18 @@ void create_unified_dashboard() {
     // ==========================================
     //    SCREEN TAB 1: OVERVIEW MAIN PANEL
     // ==========================================
-    main_panel = lv_obj_create(scr);
+        // ---- วางแทนที่บรรทัดเดิมตรงนี้ ----
+    lv_obj_t * content_body = lv_obj_create(scr);
+    lv_obj_set_size(content_body, 320, 185); 
+    lv_obj_align(content_body, LV_ALIGN_TOP_MID, 0, 25); 
+    lv_obj_set_style_bg_opa(content_body, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(content_body, 0, LV_STATE_DEFAULT);
+    lv_obj_set_style_pad_all(content_body, 0, LV_STATE_DEFAULT);
+    lv_obj_clear_flag(content_body, LV_OBJ_FLAG_SCROLLABLE);
+
+    main_panel = lv_obj_create(content_body); 
+    // ---------------------------------
+
     lv_obj_set_size(main_panel, 310, 185); 
     lv_obj_align(main_panel, LV_ALIGN_TOP_MID, 0, 25);
     lv_obj_set_style_bg_color(main_panel, lv_color_make(18, 30, 49), LV_STATE_DEFAULT);
@@ -334,7 +400,7 @@ void create_unified_dashboard() {
     // ==========================================
     //    SCREEN TAB 2: CELLS SUMMARY PANEL
     // ==========================================
-    cells_panel = lv_obj_create(scr);
+    cells_panel = lv_obj_create(content_body);
     lv_obj_set_size(cells_panel, 310, 185);
     lv_obj_align(cells_panel, LV_ALIGN_TOP_MID, 0, 25);
     lv_obj_set_style_bg_color(cells_panel, lv_color_make(18, 30, 49), LV_STATE_DEFAULT);
@@ -459,56 +525,62 @@ void create_unified_dashboard() {
     lv_obj_set_style_text_font(label_c4_v, &lv_font_montserrat_10, LV_STATE_DEFAULT); 
     lv_obj_align(label_c4_v, LV_ALIGN_BOTTOM_LEFT, 4, -2);
 
-    // ---- Static Bottom Tab Navigation Menu Bar ----
+        // ---- Static Bottom Tab Navigation Menu Bar ----
     lv_obj_t * tab_bar = lv_obj_create(scr);
-    lv_obj_set_size(tab_bar, 320, 25);
+    lv_obj_set_size(tab_bar, 320, 35); // เพิ่มพื้นที่แถบเมนูให้กดง่ายขึ้น
     lv_obj_align(tab_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(tab_bar, lv_color_make(10, 17, 26), LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(tab_bar, 0, LV_STATE_DEFAULT);
     lv_obj_set_style_pad_all(tab_bar, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_clear_flag(tab_bar, LV_OBJ_FLAG_SCROLLABLE);
 
-    // ปุ่มสลับหน้า 1 (Overview)
-    lv_obj_t * btn_overview = lv_label_create(tab_bar);
-    lv_label_set_text(btn_overview, "Overview");
-    lv_obj_set_style_text_color(btn_overview, lv_color_white(), LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(btn_overview, &lv_font_montserrat_12, LV_STATE_DEFAULT);
-    lv_obj_align(btn_overview, LV_ALIGN_LEFT_MID, 15, 0);
-    lv_obj_add_flag(btn_overview, LV_OBJ_FLAG_CLICKABLE); 
-    // เปิดสิทธิ์ให้กดได้
-    lv_obj_add_event_cb(btn_overview, menu_click_cb, LV_EVENT_CLICKED, NULL); 
-    // ผูก Callback
+    // 1. ปุ่มสลับหน้า 1 (Overview)
+    btn_overview = lv_button_create(tab_bar); 
+    lv_obj_set_size(btn_overview, 90, 30); 
+    lv_obj_align(btn_overview, LV_ALIGN_LEFT_MID, 10, 0);
+    lv_obj_set_style_bg_color(btn_overview, lv_color_make(10, 17, 26), LV_STATE_DEFAULT); 
+    lv_obj_set_style_shadow_width(btn_overview, 0, LV_STATE_DEFAULT); 
+    lv_obj_add_event_cb(btn_overview, menu_click_cb, LV_EVENT_CLICKED, NULL);
 
-    // ปุ่มสลับหน้า 2 (Live Summary)
-        // ---- แก้ไขบล็อกปุ่มสลับหน้า 2 (Live Summary) ----
-    lv_obj_t * btn_summary = lv_label_create(tab_bar);
-    lv_label_set_text(btn_summary, "Live Summary");
-    lv_obj_set_style_text_color(btn_summary, lv_color_make(127, 140, 141), LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(btn_summary, &lv_font_montserrat_12, LV_STATE_DEFAULT);
-    
-    // 🚨 1. ต้องเปิดสถานะ CLICKABLE ก่อนที่จะสั่งขยับตำแหน่งพิกเซล (เพื่อล็อคเป้าสัมผัสให้ตรงกับตัวอักษร)
-    lv_obj_add_flag(btn_summary, LV_OBJ_FLAG_CLICKABLE);
-    
-    // 🚨 2. ผูกฟังก์ชัน Callback ตรวจจับนิ้วกด
-    lv_obj_add_event_cb(btn_summary, menu_click_cb, LV_EVENT_CLICKED, NULL);
-    
-    // 🚨 3. สั่งจัดวางตำแหน่งพิกัดปุ่มไว้บรรทัดสุดท้ายของกลุ่ม
+    lv_obj_t * lbl_overview = lv_label_create(btn_overview);
+    lv_label_set_text(lbl_overview, "Overview");
+    lv_obj_set_style_text_color(lbl_overview, lv_color_white(), LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(lbl_overview, &lv_font_montserrat_12, LV_STATE_DEFAULT);
+    lv_obj_align(lbl_overview, LV_ALIGN_CENTER, 0, 0);
+    // 🚨 เปิดสถานะให้ข้อความส่งผ่านแรงกดทะลุลงไปยังปุ่มเบื้องหลัง
+    lv_obj_add_flag(lbl_overview, LV_OBJ_FLAG_EVENT_BUBBLE); 
+
+    // 2. ปุ่มสลับหน้า 2 (Live Summary)
+    btn_summary = lv_button_create(tab_bar);
+    lv_obj_set_size(btn_summary, 110, 30); 
     lv_obj_align(btn_summary, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(btn_summary, lv_color_make(10, 17, 26), LV_STATE_DEFAULT);
+    lv_obj_set_style_shadow_width(btn_summary, 0, LV_STATE_DEFAULT);
+    lv_obj_add_event_cb(btn_summary, menu_click_cb, LV_EVENT_CLICKED, NULL);
 
+    lv_obj_t * lbl_summary = lv_label_create(btn_summary);
+    lv_label_set_text(lbl_summary, "Live Summary");
+    lv_obj_set_style_text_color(lbl_summary, lv_color_make(127, 140, 141), LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(lbl_summary, &lv_font_montserrat_12, LV_STATE_DEFAULT);
+    lv_obj_align(lbl_summary, LV_ALIGN_CENTER, 0, 0);
+    // 🚨 เปิดสถานะให้ข้อความส่งผ่านแรงกดทะลุลงไปยังปุ่มเบื้องหลังเช่นกัน
+    lv_obj_add_flag(lbl_summary, LV_OBJ_FLAG_EVENT_BUBBLE); 
 
     // ปุ่มหน้า 3 (Settings)
     lv_obj_t * btn_settings = lv_label_create(tab_bar);
     lv_label_set_text(btn_settings, "Settings");
     lv_obj_set_style_text_color(btn_settings, lv_color_make(127, 140, 141), LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(btn_settings, &lv_font_montserrat_12, LV_STATE_DEFAULT);
-    lv_obj_align(btn_settings, LV_ALIGN_RIGHT_MID, -25, 0);
+    lv_obj_align(btn_settings, LV_ALIGN_RIGHT_MID, -15, 0);
 
     // เส้นขีดใต้บอกสถานะเมนู
     line_indicator = lv_obj_create(tab_bar);
-    lv_obj_set_size(line_indicator, 55, 2);
-    lv_obj_align(line_indicator, LV_ALIGN_BOTTOM_LEFT, 15, 0);
+    lv_obj_set_size(line_indicator, 65, 3);
+    lv_obj_align(line_indicator, LV_ALIGN_BOTTOM_LEFT, 23, 0);
     lv_obj_set_style_bg_color(line_indicator, lv_color_make(52, 152, 219), LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(line_indicator, 0, LV_STATE_DEFAULT);
+
+
 }
 
     // ==========================================
@@ -709,6 +781,11 @@ void processFinishedLine(String line) {
     lv_display_set_buffers(disp, lv_buf, NULL, sizeof(lv_buf), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(disp, my_disp_flush);
 
+     // 🚨 เปิดระบบลงทะเบียนหน้าจอสัมผัส (Touch Input Driver) สำหรับ LVGL v9
+    lv_indev_t * indev = lv_indev_create();
+    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER); 
+    lv_indev_set_read_cb(indev, my_touchpad_read); // ผูกฟังก์ชันอ่านค่าสัมผัสด้านบน
+
     // บูตรวมระเบียบโครงหน้าจอแบบรวมศูนย์รองรับ Tab สลับหน้า
     create_unified_dashboard();
 
@@ -716,7 +793,7 @@ void processFinishedLine(String line) {
     delay(50);
 
     NimBLEDevice::init("ESP32_BMS_Gateway");
-    NimBLEDevice::setPower(3);
+    NimBLEDevice::setPower(5);
     NimBLEScan* pNimBLEScan = NimBLEDevice::getScan();
     //  แก้ไขโดยลบพารามิเตอร์ตัวหลังออก เพื่อเปิดช่องให้บลูทูธสตรีมข้อมูลได้อย่างต่อเนื่อง
     pNimBLEScan->setScanCallbacks(new AdvertisedDeviceCallbacks()); 
