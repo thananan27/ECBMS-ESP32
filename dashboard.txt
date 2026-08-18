@@ -705,7 +705,7 @@ void processFinishedLine(String line) {
     delay(50);
 
     NimBLEDevice::init("ESP32_BMS_Gateway");
-    NimBLEDevice::setPower(9);
+    NimBLEDevice::setPower(3);
     NimBLEScan* pNimBLEScan = NimBLEDevice::getScan();
     //  แก้ไขโดยลบพารามิเตอร์ตัวหลังออก เพื่อเปิดช่องให้บลูทูธสตรีมข้อมูลได้อย่างต่อเนื่อง
     pNimBLEScan->setScanCallbacks(new AdvertisedDeviceCallbacks()); 
