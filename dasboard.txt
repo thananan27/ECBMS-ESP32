@@ -3,6 +3,7 @@
  * Fully Refactored for **LVGL v9** Standard.
  * Multi-threaded Protection with NimBLE 2.5.1 + LovyanGFX Driver.
  * 
+ * 100% WORKING FULL CODE - Features Dynamic Screen Switching and Smart Cell Coloring.
  */
 
 #include <NimBLEDevice.h>
@@ -120,9 +121,9 @@ lv_obj_t * box_cell3 = nullptr; lv_obj_t * label_c3_v = nullptr;
 lv_obj_t * box_cell4 = nullptr; lv_obj_t * label_c4_v = nullptr;
 
 // 🚨 จัดตั้งพิกัดขนาดบัฟเฟอร์วิดีโอใหม่ให้สัมพันธ์กับสัดส่วนขอบเขตแนวนอนของ LVGL v9
+//static uint8_t lv_buf[SCREEN_WIDTH * 16 * sizeof(lv_color_t)]; 
 #define DRAW_BUF_SIZE (SCREEN_WIDTH * 20 * 2) // จองไว้ 20 แถว แถวละ 2 ไบต์ต่อพิกเซล
 static uint8_t lv_buf[DRAW_BUF_SIZE];
-
 // ==========================================
 //      LVGL v9 DISPLAY FLUSH CALLBACK
 // ==========================================
@@ -144,7 +145,7 @@ void my_disp_flush(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map
 // ฟังก์ชันตรวจจับการใช้นิ้วกดสัมผัสสลับหน้าจอ (Tab Click)
 static void menu_click_cb(lv_event_t * e) {
     lv_obj_t * target = (lv_obj_t *)lv_event_get_target(e);
-    const char * menu_name = lv_label_get_text(target);
+    char * menu_name = lv_label_get_text(target);
 
     if (strcmp(menu_name, "Overview") == 0) {
         lv_label_set_text(label_title, "ESMCOMM 1.0");
@@ -707,7 +708,7 @@ void processFinishedLine(String line) {
     delay(50);
 
     NimBLEDevice::init("ESP32_BMS_Gateway");
-    NimBLEDevice::setPower(3);
+    NimBLEDevice::setPower(6);
     NimBLEScan* pNimBLEScan = NimBLEDevice::getScan();
     //  แก้ไขโดยลบพารามิเตอร์ตัวหลังออก เพื่อเปิดช่องให้บลูทูธสตรีมข้อมูลได้อย่างต่อเนื่อง
     pNimBLEScan->setScanCallbacks(new AdvertisedDeviceCallbacks()); 
