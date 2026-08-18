@@ -480,13 +480,21 @@ void create_unified_dashboard() {
     // ผูก Callback
 
     // ปุ่มสลับหน้า 2 (Live Summary)
+        // ---- แก้ไขบล็อกปุ่มสลับหน้า 2 (Live Summary) ----
     lv_obj_t * btn_summary = lv_label_create(tab_bar);
     lv_label_set_text(btn_summary, "Live Summary");
     lv_obj_set_style_text_color(btn_summary, lv_color_make(127, 140, 141), LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(btn_summary, &lv_font_montserrat_12, LV_STATE_DEFAULT);
-    lv_obj_align(btn_summary, LV_ALIGN_CENTER, 0, 0);
+    
+    // 🚨 1. ต้องเปิดสถานะ CLICKABLE ก่อนที่จะสั่งขยับตำแหน่งพิกเซล (เพื่อล็อคเป้าสัมผัสให้ตรงกับตัวอักษร)
     lv_obj_add_flag(btn_summary, LV_OBJ_FLAG_CLICKABLE);
+    
+    // 🚨 2. ผูกฟังก์ชัน Callback ตรวจจับนิ้วกด
     lv_obj_add_event_cb(btn_summary, menu_click_cb, LV_EVENT_CLICKED, NULL);
+    
+    // 🚨 3. สั่งจัดวางตำแหน่งพิกัดปุ่มไว้บรรทัดสุดท้ายของกลุ่ม
+    lv_obj_align(btn_summary, LV_ALIGN_CENTER, 0, 0);
+
 
     // ปุ่มหน้า 3 (Settings)
     lv_obj_t * btn_settings = lv_label_create(tab_bar);
@@ -708,7 +716,7 @@ void processFinishedLine(String line) {
     delay(50);
 
     NimBLEDevice::init("ESP32_BMS_Gateway");
-    NimBLEDevice::setPower(6);
+    NimBLEDevice::setPower(3);
     NimBLEScan* pNimBLEScan = NimBLEDevice::getScan();
     //  แก้ไขโดยลบพารามิเตอร์ตัวหลังออก เพื่อเปิดช่องให้บลูทูธสตรีมข้อมูลได้อย่างต่อเนื่อง
     pNimBLEScan->setScanCallbacks(new AdvertisedDeviceCallbacks()); 
@@ -720,12 +728,24 @@ void processFinishedLine(String line) {
 }
 
     void loop() {
-        lv_timer_handler();
-        if (dataReadyToUpdate) {dataReadyToUpdate = false;update_dashboard_from_bms();
+    // 1. อัปเดตระบบเวลาของ LVGL v9 โดยเปลี่ยนคำว่า settling_time เป็น millis()
+    static uint32_t last_tick = millis();
+    uint32_t current_time = millis();
+    lv_tick_inc(current_time - last_tick);
+    last_tick = current_time;
+
+    // 2. เรียกตัวจัดการคิวประมวลผลกราฟิก
+    lv_timer_handler();
+
+    // 3. ระบบดักสัญญาณข้อมูลแพ็กเก็ตใหม่จาก BMS
+    if (dataReadyToUpdate) {
+        dataReadyToUpdate = false;
+        update_dashboard_from_bms();
     }
+
     if (doConnect) {
         doConnect = false;
         connectToBMS();
     }
-    delay(1);
+    delay(5); 
 }
