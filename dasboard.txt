@@ -80,6 +80,7 @@ struct ECBMS_Data {
 };
 
 volatile ECBMS_Data battery; 
+SemaphoreHandle_t bmsMutex = NULL;
 String lineAccumulator = ""; 
 
 static const NimBLEAdvertisedDevice* bmsDevice = nullptr; 
@@ -714,7 +715,7 @@ void processFinishedLine(String line) {
     pNimBLEScan->setWindow(100);
     pNimBLEScan->setActiveScan(true); 
     pNimBLEScan->start(0); 
-
+    bmsMutex = xSemaphoreCreateMutex();
 }
 
     void loop() {
