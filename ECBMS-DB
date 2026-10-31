@@ -1,0 +1,250 @@
+#include <M5Stack.h>
+#include <WiFi.h>
+#include <NimBLEDevice.h>
+#include <MySQL_Generic.h>
+
+// ==========================================
+// 1. การตั้งค่าเน็ตเวิร์ก และฐานข้อมูล MariaDB
+// ==========================================
+const char* ssid         = "@IoT";
+const char* password     = "1qaz2wsx"; 
+IPAddress server_ip(192, 168, 10, 165); 
+uint16_t server_port     = 3306;  
+char db_user[]           = "root";
+char db_password[]       = "1234"; 
+char db_name[]           = "m5stack_db"; 
+
+WiFiClient myWiFiClient; 
+MySQL_Connection conn((Client *)&myWiFiClient);
+
+// ==========================================
+// 2. การตั้งค่าบลูทูธ ECBms 
+// ==========================================
+static NimBLEUUID serviceUUID("0000fff0-0000-1000-8000-00805f9b34fb");
+static NimBLEUUID charUUID   ("0000fff2-0000-1000-8000-00805f9b34fb"); 
+
+#define BMS_MAC_ADDRESS "ff:ff:11:e7:cd:b3"
+#define BMS_DEVICE_NAME "EC-Lifepo4 4S"
+
+bool doConnect = false;
+NimBLEAdvertisedDevice* bmsDevice = nullptr;
+NimBLEClient* pClient = nullptr;
+
+float bms_total_volt = 0.0, bms_volt_gap = 0.0, bms_lowest_cell_volt = 0.0, bms_highest_cell_volt = 0.0;
+int   bms_lowest_cell_num = 0, bms_highest_cell_num = 0, bms_soc = 0;
+float bms_chip1_temp = 0.0, bms_current = 0.0, bms_capacity = 0.0, bms_total_discharge = 0.0, bms_power = 0.0;
+float bms_avg_cell_volt = 0.0, bms_mos_temp = 0.0, bms_board_temp = 0.0;
+float cell1 = 0.0, cell2 = 0.0, cell3 = 0.0, cell4 = 0.0;
+String macStr = WiFi.macAddress(); 
+const char* esp_mac = macStr.c_str(); 
+
+String globalBuffer = ""; 
+
+unsigned long lastDbWriteTime = 0;
+const unsigned long dbWriteInterval = 5000; // ส่งเข้า MariaDB ทุก 5 วินาที
+
+// ==========================================
+// 3. ระบบคัดแยกคำศัพท์บลูทูธความเร็วสูง (High-Speed Parser)
+// ==========================================
+void notifyCallback(NimBLERemoteCharacteristic* pRemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+    if (length == 0) return;
+
+    char asciiBuffer[length + 1];
+    memcpy(asciiBuffer, pData, length);
+    asciiBuffer[length] = '\0';
+
+    globalBuffer += String(asciiBuffer);
+
+    int pos = 0;
+    while ((pos = globalBuffer.indexOf('\n')) >= 0) {
+        String line = globalBuffer.substring(0, pos);
+        globalBuffer = globalBuffer.substring(pos + 1);
+        line.trim();
+
+        if (line.length() == 0) continue;
+
+        // ถอดรหัสค่าลงตัวแปรทันที (ใช้เวลาเพียงหน่วยไมโครวินาที ทำให้บลูทูธไม่หลุด)
+        if (line.startsWith("zdy:"))        bms_total_volt       = line.substring(4).toFloat();
+        else if (line.startsWith("yc:"))    bms_volt_gap         = line.substring(3).toFloat();
+        else if (line.startsWith("zd:"))    bms_lowest_cell_num  = line.substring(3).toInt();
+        else if (line.startsWith("min:"))   bms_lowest_cell_volt = line.substring(4).toFloat();
+        else if (line.startsWith("zg:"))    bms_highest_cell_num = line.substring(3).toInt();
+        else if (line.startsWith("max:"))   bms_highest_cell_volt= line.substring(4).toFloat();
+        else if (line.startsWith("xpwd1:")) bms_chip1_temp       = line.substring(6).toFloat();
+        else if (line.startsWith("dl:"))    bms_current          = line.substring(3).toFloat();
+        else if (line.startsWith("bl:"))    bms_soc              = line.substring(3).toInt();
+        else if (line.startsWith("rl:"))    bms_capacity         = line.substring(3).toFloat();
+        else if (line.startsWith("zx:"))    bms_total_discharge  = line.substring(3).toFloat();
+        else if (line.startsWith("gl:"))    bms_power            = line.substring(3).toFloat();
+        else if (line.startsWith("pj:"))    bms_avg_cell_volt    = line.substring(3).toFloat();
+        else if (line.startsWith("moswd:")) bms_mos_temp         = line.substring(6).toFloat();
+        else if (line.startsWith("jhwd:"))  bms_board_temp       = line.substring(5).toFloat();
+        else if (line.startsWith("1:"))     cell1                = line.substring(2).toFloat();
+        else if (line.startsWith("2:"))     cell2                = line.substring(2).toFloat();
+        else if (line.startsWith("3:"))     cell3                = line.substring(2).toFloat();
+        else if (line.startsWith("4:"))     cell4                = line.substring(2).toFloat();
+    }
+
+    if (globalBuffer.length() > 500) {
+        globalBuffer = "";
+    }
+}
+
+    class ClientCallbacks : public NimBLEClientCallbacks {
+    void onConnect(NimBLEClient* pClient) override {
+        Serial.println("[BLE] Connected to ECBMS successfully.");
+    }
+    void onDisconnect(NimBLEClient* pClient, int reason) override { // เพิ่มพารามิเตอร์ reason ตามมาตรฐานเวอร์ชัน 2
+        Serial.print("[BLE] Connection lost. Reason code: ");
+        Serial.println(reason);
+        doConnect = false;
+        bmsDevice = nullptr;
+        globalBuffer = "";
+        
+        // หน่วยเวลาในเวอร์ชัน 2.5.1 ใช้เป็นมิลลิวินาที (0 หมายถึงสแกนไปเรื่อยๆ)
+        NimBLEDevice::getScan()->start(0, false); 
+    }
+};
+
+class AdvertisedDeviceCallbacks: public NimBLEScanCallbacks {
+    void onResult(const NimBLEAdvertisedDevice* advertisedDevice) override {
+        // ดึง Address และ Name ออกมาตรวจสอบ
+        String currentAddress = advertisedDevice->getAddress().toString().c_str();
+        String currentName = advertisedDevice->getName().c_str();
+        currentAddress.toLowerCase();
+
+        if (currentAddress == BMS_MAC_ADDRESS || currentName == BMS_DEVICE_NAME) {
+            Serial.println("[BLE] Target Identified.");
+            NimBLEDevice::getScan()->stop();
+            
+            // ปรับการเก็บ pointer อ้างอิงตัวอุปกรณ์บีคอนให้ถูกต้องตามคลาสเวอร์ชัน 2
+            bmsDevice = const_cast<NimBLEAdvertisedDevice*>(advertisedDevice);
+            doConnect = true;
+        }
+    }
+};
+
+bool connectToBMS() {
+    if (bmsDevice == nullptr) return false;
+    if (pClient == nullptr) {
+        pClient = NimBLEDevice::createClient();
+        pClient->setClientCallbacks(new ClientCallbacks(), true); // ใช้ true เพื่อลบอินสแตนซ์ทิ้งอัตโนมัติเมื่อเลิกใช้
+    }
+    
+    // ตรวจสอบสถานะการเชื่อมต่อ
+    if (!pClient->connect(bmsDevice)) return false;
+
+    NimBLERemoteService* pRemoteService = pClient->getService(serviceUUID);
+    if (pRemoteService == nullptr) { pClient->disconnect(); return false; }
+
+    NimBLERemoteCharacteristic* pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
+    if (pRemoteCharacteristic == nullptr) { pClient->disconnect(); return false; }
+
+    if (pRemoteCharacteristic->canNotify()) {
+        // ในเวอร์ชันใหม่ แนะนำให้ระบุพารามิเตอร์เป็น (bool omitDescriptor, notifyCallback) หรือใช้ subscribe ปกติ
+        if (!pRemoteCharacteristic->subscribe(true, notifyCallback)) { 
+            pClient->disconnect(); 
+            return false; 
+        }
+    } else { 
+        pClient->disconnect(); 
+        return false; 
+    }
+    return true;
+}
+
+// ==========================================
+// 4. ฟังก์ชันจัดการเชื่อมต่อ Wi-Fi และดึงค่าเขียนฐานข้อมูล
+// ==========================================
+void connectWiFi() {
+    if (WiFi.status() == WL_CONNECTED) return;
+    Serial.print("[WiFi] Reconnecting");
+    WiFi.begin(ssid, password);
+    int attempt = 0;
+    while (WiFi.status() != WL_CONNECTED && attempt < 10) {
+        delay(200);
+        Serial.print(".");
+        attempt++;
+    }
+    if (WiFi.status() == WL_CONNECTED) Serial.println(" Connected!");
+}
+
+void writeDataToMariaDB() {
+    if (cell1 < 1.0 || cell1 > 5.0) cell1 = 0.0;
+    if (cell2 < 1.0 || cell2 > 5.0) cell2 = 0.0;
+    if (cell3 < 1.0 || cell3 > 5.0) cell3 = 0.0;
+    if (cell4 < 1.0 || cell4 > 5.0) cell4 = 0.0;
+
+    connectWiFi();
+    if (WiFi.status() != WL_CONNECTED) return;
+
+    if (conn.connect(server_ip, server_port, db_user, db_password)) {
+        MySQL_Query query_mem(&conn);
+        char query[512]; 
+        
+        snprintf(query, sizeof(query), 
+                 "INSERT INTO %s.bms_records (total_volt, volt_gap, lowest_cell_num, lowest_cell_volt, highest_cell_num, highest_cell_volt, chip1_temp, current_load, soc, capacity, total_discharge, power, avg_cell_volt, mos_temp, board_temp, cell1, cell2, cell3, cell4, mac_addr) "
+                 "VALUES (%.4f, %.4f, %d, %.4f, %d, %.4f, %.4f, %.4f, %d, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, '%s')",
+                 db_name, bms_total_volt, bms_volt_gap, bms_lowest_cell_num, bms_lowest_cell_volt, bms_highest_cell_num, bms_highest_cell_volt, 
+                 bms_chip1_temp, bms_current, bms_soc, bms_capacity, bms_total_discharge, bms_power, bms_avg_cell_volt, bms_mos_temp, bms_board_temp, 
+                 cell1, cell2, cell3, cell4, esp_mac);
+        
+        if (query_mem.execute(query)) {
+            Serial.println("[DB] Insert Success!");
+        } else {
+            Serial.println("[DB] Insert Failed.");
+        }
+        conn.close(); 
+    }
+}
+
+// ==========================================
+// 5. บูทสแตรปหลัก 
+// ==========================================
+void setup() {
+    M5.begin();
+    M5.Power.begin();
+    
+    M5.Lcd.setBrightness(0); 
+    M5.Lcd.sleep(); 
+    
+    Serial.begin(115200);
+    Serial.println("[System] Booting Asynchronous Stream Gateway...");
+
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
+
+    NimBLEDevice::init("M5Stack_BMS_Gateway");
+    NimBLEDevice::setPower(3);
+    NimBLEScan* pNimBLEScan = NimBLEDevice::getScan();
+    pNimBLEScan->setScanCallbacks(new AdvertisedDeviceCallbacks(), false);
+    pNimBLEScan->start(0); 
+
+    Serial.println("[System] System Online.");
+}
+
+void loop() {
+    M5.update(); 
+
+    if (doConnect) {
+        doConnect = false;
+        if (connectToBMS()) {
+            Serial.println("[System] Handshake Operational with ECBms!");
+        } else {
+            delay(1000);
+            NimBLEDevice::getScan()->start(0);
+        }
+    }
+
+    if (millis() - lastDbWriteTime >= dbWriteInterval) {
+
+        lastDbWriteTime = millis();
+        
+        if (pClient && pClient->isConnected()) {
+          Serial.printf("[Stats] V: %.2fV | SOC: %d%% | C1: %.4fV\n", bms_total_volt, bms_soc, cell1);
+        
+        writeDataToMariaDB();  
+    }
+  }
+    delay(10); 
+}
