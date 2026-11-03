@@ -1,67 +1,47 @@
-<?php
-// 🟢 จัดการต่อท่อคุยตรงกับฐานข้อมูล MariaDB โลคอลเครื่องดั้งเดิม [INDEX]
-$servername = "localhost"; 
-$username   = "root";     
-$password   = "123456#";  
-$dbname     = "m5stack_db";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    // สเตตัสสแตนด์บายจำลองกรณีบอร์ด M5 ยังไม่ยิงค่าเข้ามา
-    $row = ["soc"=>100, "cell1"=>3.358, "cell2"=>3.357, "cell3"=>3.359, "cell4"=>3.358, "current_load"=>0.10, "capacity"=>100.00, "total_discharge"=>5625, "lowest_cell_num"=>2, "lowest_cell_volt"=>3.357, "highest_cell_num"=>3, "highest_cell_volt"=>3.359, "board_temp"=>28.5, "mos_temp"=>26.4, "volt_gap"=>0.002, "avg_cell_volt"=>3.358, "id"=>1, "mac_addr"=>"B4:E6:2D:8B:73:69"];
-} else {
-    // กวาดดึงประวัติแถวล่าสุดเม็ดเดียวขึ้นมาสเปกตรัมโชว์หน้าเว็บ [INDEX]
-    $sql = "SELECT * FROM bms_records ORDER BY recorded_at DESC LIMIT 1";
-    $result = $conn->query($sql);
-    if ($result && $result->num_rows > 0) { $row = $result->fetch_assoc(); }
-    else { $row = ["soc"=>100, "cell1"=>3.358, "cell2"=>3.357, "cell3"=>3.359, "cell4"=>3.358, "current_load"=>0.10, "capacity"=>100.00, "total_discharge"=>5625, "lowest_cell_num"=>2, "lowest_cell_volt"=>3.357, "highest_cell_num"=>3, "highest_cell_volt"=>3.359, "board_temp"=>28.5, "mos_temp"=>26.4, "volt_gap"=>0.002, "avg_cell_volt"=>3.358, "id"=>1, "mac_addr"=>"B4:E6:2D:8B:73:69"]; }
-    $conn->close();
-}
-
-// ล็อกสมการหารสองแก้บั๊กโวลต์เกินระบบ 4S 12V คำนวณตรงจากเคมีเนื้อเซลล์จริง [INDEX]
-$calculated_v = floatval($row['cell1']) + floatval($row['cell2']) + floatval($row['cell3']) + floatval($row['cell4']);
-$amps = floatval($row['current_load']);
-$watts = $calculated_v * abs($amps);
-
-if ($amps > 0.02) { $state_txt = "CHARGING"; $state_color = "#39e67d"; }
-else if ($amps < -0.02) { $state_txt = "DISCHARGE"; $state_color = "#ff4455"; }
-else { $state_txt = "IDLE"; $state_color = "#798b9c"; }
-?>
 <!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="1"> <!-- 🔄 อัปเดตตัวเลขหน้าจอดึงข้อมูลตรงรัวๆ ทุกวินาที -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BMS - details</title>
   <link rel="stylesheet" href="https://cloudflare.com">
+  <script src="chart.js"></script>
+
+
   <style>
     :root {
       --bg-gradient: linear-gradient(135deg, #101c2c 0%, #060b13 100%);
       --card-bg: rgba(16, 29, 45, 0.4);
       --card-border: 1px solid rgba(255, 255, 255, 0.05);
-      --neon-blue: #00a2ff; --neon-cyan: #00f3ff; --neon-green: #39e67d; --neon-red: #ff4455; --text-muted: #798b9c;
+      --neon-blue: #00a2ff;
+      --neon-cyan: #00f3ff;
+      --neon-green: #39e67d;
+      --neon-red: #ff4455;
+      --text-muted: #798b9c;
     }
-    body { background: var(--bg-gradient); color: #ffffff; font-family: -apple-system, sans-serif; margin: 0; padding: 25px; display: flex; justify-content: center; min-height: 100vh; }
+    body {
+      background: var(--bg-gradient); color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0; padding: 25px; display: flex; justify-content: center; min-height: 100vh;
+    }
     .app-container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
     .top-header-row { display: flex; justify-content: space-between; align-items: center; }
-    .title-zone { font-size: 26px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+    .title-zone { font-size: 26px; font-weight: bold; letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
     .connection-pill { background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.2); padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--neon-cyan); font-weight: 500; font-family: monospace; }
     .main-card { background: var(--card-bg); border: var(--card-border); border-radius: 16px; padding: 25px; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
     .hero-layout { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
     .gauge-wrapper { position: relative; width: 140px; height: 140px; display: flex; justify-content: center; align-items: center; }
     .gauge-track { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 6px solid #142438; box-sizing: border-box; }
-    .gauge-fill { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 6px solid transparent; border-top-color: var(--neon-blue); border-right-color: var(--neon-blue); border-left-color: var(--neon-blue); box-sizing: border-box; transform: rotate(-45deg); filter: drop-shadow(0 0 8px rgba(0, 162, 255, 0.5)); }
+    .gauge-fill { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 6px solid transparent; border-top-color: var(--neon-blue); border-right-color: var(--neon-blue); border-left-color: var(--neon-blue); box-sizing: border-box; transform: rotate(-45deg); filter: drop-shadow(0 0 8px rgba(0, 162, 255, 0.5)); box-sizing: border-box; }
     .gauge-center { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .soc-num { font-size: 46px; font-weight: bold; line-height: 1; }
     .soc-num span { font-size: 18px; font-weight: normal; color: var(--text-muted); }
-    .state-badge { font-size: 11px; font-weight: bold; letter-spacing: 1px; margin-top: 4px; text-transform: uppercase; }
+    .state-badge { font-size: 11px; font-weight: bold; color: var(--neon-green); letter-spacing: 1px; margin-top: 4px; text-transform: uppercase; }
     .power-display { text-align: right; }
     .power-lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
     .power-num { font-size: 54px; font-weight: 300; color: #ffffff; line-height: 1.1; margin: 4px 0; }
-    .power-num span { font-size: 22px; font-weight: 400; color: var(--text-muted); }
-    .time-remaining { font-size: 11px; background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 12px; display: inline-block; }
+    .power-num span { font-size: 22px; font-weight: 400; color: var(--text-muted); margin-left: 2px; }
+    .time-remaining { font-size: 11px; color: var(--neon-green); background: rgba(57, 230, 125, 0.08); padding: 4px 10px; border-radius: 12px; display: inline-block; }
     .info-grid-3x2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 20px; }
     .info-node { display: flex; flex-direction: column; gap: 4px; }
     .node-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
@@ -71,40 +51,33 @@ else { $state_txt = "IDLE"; $state_color = "#798b9c"; }
     .btn-action { background: #0f1b2d; border: var(--card-border); padding: 10px; border-radius: 8px; text-align: center; }
     .btn-lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
     .btn-status { font-size: 12px; font-weight: bold; }
-    .status-on { color: var(--neon-cyan); } .status-off { color: var(--text-muted); }
-    .nav-tabs-row { display: flex; gap: 10px; margin-bottom: 5px; width: 100%; }
-    .tab-link { flex: 1; text-align: center; padding: 10px; border-radius: 8px; background: rgba(16, 29, 45, 0.6); border: var(--card-border); color: var(--text-muted); text-decoration: none; font-size: 12px; font-weight: bold; }
-    .tab-link.active { background: rgba(0, 162, 255, 0.15); border-color: var(--neon-cyan); color: #ffffff; box-shadow: 0 0 10px rgba(0, 243, 255, 0.2); }
+    .status-on { color: var(--neon-cyan); }
+    .status-off { color: var(--text-muted); }
     .capsule-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
     .cap-card { background: var(--card-bg); border: var(--card-border); border-radius: 12px; padding: 15px; }
-    .cap-lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; }
-    .cap-val { font-size: 14px; font-weight: bold; font-family: monospace; }
+    .cap-lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .cap-val { font-size: 15px; font-weight: bold; font-family: monospace; }
     .split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .nested-cell-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
     .cell-line { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.15); padding: 10px 14px; border-radius: 8px; border: var(--card-border); }
-    .c-lbl { font-size: 12px; color: var(--text-muted); } .c-val { font-size: 14px; font-weight: bold; font-family: monospace; }
-    .c-minmax { font-size: 11px; color: #ffffff; }
-    .matrix-box-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
-    .matrix-node { border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 4px; border-left: 4px solid var(--neon-green); border: var(--card-border); }
+    .c-lbl { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    .c-val { font-size: 14px; font-weight: bold; font-family: monospace; }
+    .c-minmax { font-size: 11px; color: #ffffff; font-weight: normal; }
+    .matrix-box-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .matrix-node { border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 4px; border-left: 4px solid var(--neon-green); box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
     .m-title { font-size: 11px; font-weight: bold; text-transform: uppercase; }
-    .m-v { font-size: 18px; font-weight: bold; font-family: monospace; } .m-r { font-size: 10px; color: var(--text-muted); }
-    .border-cyan { border-left: 4px solid var(--neon-cyan); background: rgba(0, 243, 255, 0.02); }
-    .border-green { border-left: 4px solid var(--neon-green); background: rgba(57, 230, 125, 0.02); }
+    .m-v { font-size: 18px; font-weight: bold; font-family: monospace; }
+    .m-r { font-size: 10px; color: var(--text-muted); }
+    .border-cyan { border-left-color: var(--neon-cyan); background: rgba(0, 243, 255, 0.02); }
+    .border-green { border-left-color: var(--neon-green); background: rgba(57, 230, 125, 0.02); }
   </style>
 </head>
 <body>
 
   <div class="app-container">
     <div class="top-header-row">
-      <div class="title-zone">บ้าน <i class="fa-solid fa-pen" style="font-size:14px;"></i></div>
-      <div class="connection-pill">MAC: <?php echo $row['mac_addr']; ?></div>
-    </div>
-
-    <!-- 🔘 แถบเมนูหลักสามปุ่มสลับลิงก์ข้ามสายข้ามไฟล์ -->
-    <div class="nav-tabs-row">
-      <a href="dashboard3.php" class="tab-link active"><i class="fa-solid fa-house"></i> DASHBOARD</a>
-      <a href="history.php?mac=<?php echo $row['mac_addr']; ?>" class="tab-link"><i class="fa-solid fa-chart-line"></i> HISTORY</a>
-      <a href="manage.php" class="tab-link"><i class="fa-solid fa-sliders"></i> SETTING</a>
+      <div class="title-zone">EC-Smart BMS <i class="fa-solid fa-pen"></i></div>
+      <div class="connection-pill">IP: 192.168.10.184</div>
     </div>
 
     <div class="main-card">
@@ -113,14 +86,14 @@ else { $state_txt = "IDLE"; $state_color = "#798b9c"; }
           <div class="gauge-track"></div>
           <div class="gauge-fill"></div>
           <div class="gauge-center">
-            <div class="soc-num"><?php echo $row['soc']; ?><span>%</span></div>
-            <div class="state-badge" style="color: <?php echo $state_color; ?>;"><?php echo $state_txt; ?></div>
+            <div class="soc-num" id="web-soc">--<span>%</span></div>
+            <div class="state-badge" id="web-state">IDLE</div>
           </div>
         </div>
         <div class="power-display">
           <div class="power-lbl">POWER FLOW</div>
-          <div class="power-num"><?php echo number_format($watts, 1); ?><span>W</span></div>
-          <div class="time-remaining" style="color: <?php echo $state_color; ?>;"><i class="fa-regular fa-clock"></i> <?php echo $time_lbl; ?>ซิงค์: <?php echo date('H:i:s'); ?></div>
+          <div class="power-num" id="web-power">0.0<span>W</span></div>
+          <div class="time-remaining" id="web-time"><i class="fa-regular fa-clock"></i> แบตเตอรี่สแตนด์บายคงที่</div>
         </div>
       </div>
 
@@ -203,7 +176,25 @@ else { $state_txt = "IDLE"; $state_color = "#798b9c"; }
     </div>
 </div>
 
-
+<!-- 🟢 เพิ่มกล่องกลไกปรับค่าสเกลคาริเบรทในหน้า HTML -->
+<div class="main-card" style="padding: 20px; margin-top: 20px;">
+    <div class="power-lbl">CALIBRATION SETTINGS<br>
+        <span style="color: #8b949e; font-size: 14px; font-weight: bold;">ปรับแต่งสเกลตัวหารแอมป์ (ไม่ต้องแก้โค้ดบอร์ด)</span>
+    </div>
+    <div style="display: flex; gap: 15px; align-items: center; margin-top: 15px;">
+        <div style="flex: 1;">
+            <label style="color: var(--neon-cyan); font-size: 13px; font-weight: bold; display: block; margin-bottom: 5px;">สเกลฝั่งชาร์จ (CHARGE):</label>
+            <input type="number" id="cal-charge-input" step="0.01" style="width: 100%; padding: 10px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #fff; font-weight: bold; font-size: 16px; box-sizing: border-box;">
+        </div>
+        <div style="flex: 1;">
+            <label style="color: var(--neon-red); font-size: 13px; font-weight: bold; display: block; margin-bottom: 5px;">สเกลฝั่งจ่ายไฟ (DISCHARGE):</label>
+            <input type="number" id="cal-discharge-input" step="0.01" style="width: 100%; padding: 10px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #fff; font-weight: bold; font-size: 16px; box-sizing: border-box;">
+        </div>
+        <div style="margin-top: 22px;">
+            <button onclick="saveCalibrationScales()" style="padding: 11px 20px; background: rgba(0, 255, 102, 0.15); border: 1px solid #00ff66; border-radius: 6px; color: #00ff66; font-weight: bold; font-size: 15px; cursor: pointer;">บันทึกค่า</button>
+        </div>
+    </div>
+</div>
 
     </div>
 
@@ -313,13 +304,14 @@ function initChart() {
         }
     });
 }
+
 // ====================================================================
 // 4. ฟังก์ชันหลักวนลูปดึงข้อมูลและกระจายค่าลงหน้าจอ (MAIN SYNC CORE)
 // ====================================================================
 function refreshBMSCore() {
     fetch('bms_api.php')
-        .then(response => response.json())
-                .then(data => {
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             function updateText(id, text) {
                 var el = document.getElementById(id);
                 if (el) el.innerHTML = text;
@@ -478,6 +470,7 @@ function refreshBMSCore() {
 
 window.onload = function() {
     initChart();
+    initCalibrationUI();
     refreshBMSCore();
     setInterval(refreshBMSCore, 1000);
 };
