@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BMS - details</title>
-  <link rel="stylesheet" href="https://cloudflare.com">
+
   <script src="chart.js"></script>
 
 
@@ -176,25 +176,7 @@
     </div>
 </div>
 
-<!-- 🟢 เพิ่มกล่องกลไกปรับค่าสเกลคาริเบรทในหน้า HTML -->
-<div class="main-card" style="padding: 20px; margin-top: 20px;">
-    <div class="power-lbl">CALIBRATION SETTINGS<br>
-        <span style="color: #8b949e; font-size: 14px; font-weight: bold;">ปรับแต่งสเกลตัวหารแอมป์ (ไม่ต้องแก้โค้ดบอร์ด)</span>
-    </div>
-    <div style="display: flex; gap: 15px; align-items: center; margin-top: 15px;">
-        <div style="flex: 1;">
-            <label style="color: var(--neon-cyan); font-size: 13px; font-weight: bold; display: block; margin-bottom: 5px;">สเกลฝั่งชาร์จ (CHARGE):</label>
-            <input type="number" id="cal-charge-input" step="0.01" style="width: 100%; padding: 10px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #fff; font-weight: bold; font-size: 16px; box-sizing: border-box;">
-        </div>
-        <div style="flex: 1;">
-            <label style="color: var(--neon-red); font-size: 13px; font-weight: bold; display: block; margin-bottom: 5px;">สเกลฝั่งจ่ายไฟ (DISCHARGE):</label>
-            <input type="number" id="cal-discharge-input" step="0.01" style="width: 100%; padding: 10px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #fff; font-weight: bold; font-size: 16px; box-sizing: border-box;">
-        </div>
-        <div style="margin-top: 22px;">
-            <button onclick="saveCalibrationScales()" style="padding: 11px 20px; background: rgba(0, 255, 102, 0.15); border: 1px solid #00ff66; border-radius: 6px; color: #00ff66; font-weight: bold; font-size: 15px; cursor: pointer;">บันทึกค่า</button>
-        </div>
-    </div>
-</div>
+
 
     </div>
 
@@ -222,56 +204,6 @@ var scaleDischarge = 3.85;
 var isFirstLoadScale = true; // ล็อกสำหรับป้อนค่าเข้าช่องอินพุตครั้งแรกครั้งเดียว
 var currentBoardMac = "";    // รหัส Mac Address ประจำตัวบอร์ดในวินาทีนั้น
 
-// ====================================================================
-// 2. ฟังก์ชันจัดการส่วนช่องกรอกจูนสเกลแอมป์ (CALIBRATION UI & AJAX)
-// ====================================================================
-
-// สั่งโหลดตัวเลขสเกลที่ได้จากฐานข้อมูลไปแสดงในช่องกรอก Input ตอนเปิดเว็บหนแรก
-function initCalibrationUI() {
-    if(document.getElementById('cal-charge-input')) document.getElementById('cal-charge-input').value = scaleCharge;
-    if(document.getElementById('cal-discharge-input')) document.getElementById('cal-discharge-input').value = scaleDischarge;
-}
-
-// ฟังก์ชันสั่งยิงค่าสเกลใหม่ข้ามไปบันทึกถาวรลงในฐานข้อมูลตาราง bms_devices
-function saveCalibrationScales() {
-    var inputChg = document.getElementById('cal-charge-input').value;
-    var inputDsg = document.getElementById('cal-discharge-input').value;
-    
-    if (!currentBoardMac) {
-        alert("❌ ไม่สามารถบันทึกได้ เนื่องจากระบบยังไม่ได้รับข้อมูล Mac Address จากบอร์ด");
-        return;
-    }
-
-    if (inputChg && inputDsg) {
-        scaleCharge = parseFloat(inputChg);
-        scaleDischarge = parseFloat(inputDsg);
-        
-        // บรรจุข้อมูลส่งไปหาไฟล์เบื้องหลัง update_scale.php แบบ Ajax หน้าจอไม่กะพริบ
-        var formData = new FormData();
-        formData.append('mac_addr', currentBoardMac);
-        formData.append('scale_charge', scaleCharge);
-        formData.append('scale_discharge', scaleDischarge);
-
-        fetch('update_scale.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(function(res) { 
-            return res.json(); 
-        })
-        .then(function(resData) {
-            if (resData.status === "success") {
-                alert("✅ " + resData.message);
-            } else {
-                alert("❌ " + resData.message);
-            }
-        })
-        .catch(function(err) {
-            console.error("Error saving scale:", err);
-            alert("❌ ระบบหลังบ้านติดขัด ไม่สามารถส่งข้อมูลไปบันทึกได้");
-        });
-    }
-}
 
 // ====================================================================
 // 3. ฟังก์ชันวาดโครงสร้างกราฟเริ่มต้น (INIT HISTORY CHART)
@@ -310,8 +242,8 @@ function initChart() {
 // ====================================================================
 function refreshBMSCore() {
     fetch('bms_api.php')
-        .then(function(res) { return res.json(); })
-        .then(function(data) {
+        .then(response => response.json())
+                .then(data => {
             function updateText(id, text) {
                 var el = document.getElementById(id);
                 if (el) el.innerHTML = text;
@@ -470,7 +402,6 @@ function refreshBMSCore() {
 
 window.onload = function() {
     initChart();
-    initCalibrationUI();
     refreshBMSCore();
     setInterval(refreshBMSCore, 1000);
 };
