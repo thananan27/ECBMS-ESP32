@@ -1,71 +1,407 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#08111d">
-<title>EC-Smart BMS Dashboard</title>
-<style>
-:root{--bg:#08111d;--panel:#0d1a28;--panel2:#0a1522;--line:#1a2a3b;--muted:#8291a3;--white:#f4f7fb;--cyan:#20d9e8;--green:#38df8b;--red:#f05268;--yellow:#f3cc38;--blue:#289cf2}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1725 0%,#070e18 100%);color:var(--white);font-family:Arial,"Noto Sans Thai",sans-serif;padding:18px 16px 30px;max-width:760px;margin:auto}
-.menu-grid{display:flex;gap:7px;margin:0 0 24px}.menu-item{flex:1;min-width:0;text-align:center;padding:11px 2px;border-radius:9px;background:#101d2c;border:1px solid #17283a;color:#8b9aad;text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.04em}.menu-active{color:var(--cyan);background:#102538;border-color:#155267}
-.header-area{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 24px}.header-title{font-size:clamp(25px,5vw,34px);line-height:1.08;margin:0;font-weight:800;letter-spacing:-.03em}.mac-badge{max-width:52%;overflow-wrap:anywhere;background:#0b2b3b;color:#58d9eb;border:1px solid #16495b;border-radius:28px;padding:9px 14px;font:12px/1.35 monospace}
-.card-bg{background:linear-gradient(145deg,#0e1b2a,#0b1724);border:1px solid var(--line);border-radius:22px;box-shadow:0 12px 30px #0002;padding:22px;margin-bottom:16px}.hero{padding:25px 24px 24px}.hero-top{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:center;min-height:190px}.soc-wrap{display:flex;align-items:center;justify-content:center}.soc-circle{width:clamp(135px,38vw,185px);height:clamp(135px,38vw,185px);border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;background:conic-gradient(var(--cyan) var(--soc,97%),#1b2a3a 0);transform:rotate(0deg)}.soc-circle:before{content:"";position:absolute;inset:7px;border-radius:50%;background:#0e1b29}.soc-inner{position:relative;text-align:center}.soc-num{font-size:clamp(40px,9vw,58px);font-weight:800;letter-spacing:-.04em}.soc-unit{font-size:17px;color:#9baaba}.charging-status{font-size:12px;letter-spacing:.12em;font-weight:800;color:var(--red);margin-top:2px}.power-box{text-align:center}.label-text{font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}.power-value{font-size:clamp(42px,9vw,62px);font-weight:300;line-height:1.1;white-space:nowrap}.power-unit{font-size:26px;color:#8997a8}.flow-pill{display:inline-block;margin-top:12px;padding:7px 12px;border-radius:20px;background:#102b2b;color:#f18b9a;font-size:11px;line-height:1.5}.hero-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px 12px;border-top:1px solid #1b2a3a;margin-top:26px;padding-top:24px}.value-text{font-size:clamp(17px,3.7vw,23px);font-weight:750;overflow-wrap:anywhere}.value-unit{font-size:13px;color:#a3afbd;font-weight:400}.cyan{color:var(--cyan)}.green{color:var(--green)}.red{color:var(--red)}.blue{color:var(--blue)}.yellow{color:var(--yellow)}
-.status-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:30px 0}.status-card{background:#101d2c;border:1px solid #1a2a3d;border-radius:13px;text-align:center;padding:15px 5px}.status-label{font-size:10px;color:var(--muted);margin-bottom:5px}.status-value{font-size:14px;font-weight:800;color:var(--cyan)}.status-value.off{color:#9aa6b5}.balance-on{color:var(--green)!important}.balance-unknown{color:var(--yellow)!important}
-.info-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:24px}.mini-card{min-width:0;background:linear-gradient(145deg,#0e1b2a,#0b1724);border:1px solid var(--line);border-radius:20px;padding:18px 16px;min-height:116px}.mini-card .value-text{margin-top:8px;line-height:1.25}.mini-card .label-text{line-height:1.4;letter-spacing:.06em}
-.lower-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}.lower-card{padding:24px 20px}.temp-item,.extreme-item{background:#091521;border:1px solid #152639;border-radius:12px;padding:13px 12px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;gap:8px}.temp-name,.extreme-name{font-size:12px;color:#91a0b2;font-weight:700}.temp-value{font-size:17px;font-weight:800;white-space:nowrap}.extreme-item{display:block;text-align:right}.extreme-head{display:flex;justify-content:space-between;align-items:center;gap:8px}.extreme-value{font-size:14px;margin-top:3px}.cell-matrix-title{font-size:18px;font-weight:700;margin:2px 0 18px}.cell-matrix{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.cell-box{background:#0b1b29;border-left:5px solid var(--cyan);border-radius:13px;padding:15px 14px;min-width:0;box-shadow:inset 0 0 18px #06101b55}.cell-box:nth-child(2){border-left-color:var(--green)}.cell-box:nth-child(3){border-left-color:var(--green)}.cell-box:nth-child(4){border-left-color:var(--cyan)}.cell-name{font-size:12px;font-weight:800;color:var(--cyan);margin-bottom:7px}.cell-box:nth-child(2) .cell-name,.cell-box:nth-child(3) .cell-name{color:var(--green)}.cell-voltage{font-size:clamp(19px,4vw,27px);font-family:monospace;font-weight:700;white-space:nowrap}.cell-resistance{font-size:10px;color:#718297;margin-top:7px}.chart-card{padding:24px;margin-top:0}.chart-heading{font-size:18px;font-weight:700;line-height:1.5;margin-bottom:18px}.chart-wrap{width:100%;height:290px;position:relative}.chart-wrap canvas{width:100%;height:100%;display:block}.updated{font-size:10px;color:#63758a;margin-top:12px;text-align:right}.error{font-size:12px;color:#fbbf24;margin-top:8px;min-height:15px}
-@media(max-width:430px){body{padding:14px 12px 24px}.menu-grid{gap:5px}.menu-item{font-size:10px;padding:10px 1px}.card-bg{border-radius:19px}.hero{padding:20px 17px}.hero-top{min-height:160px;gap:8px}.hero-stats{gap:20px 8px}.status-row{gap:8px;margin:24px 0}.status-card{padding:13px 3px}.info-row{gap:8px}.mini-card{padding:16px 12px;min-height:118px}.lower-grid{gap:12px}.lower-card{padding:20px 13px}.temp-item{display:block}.temp-value{margin-top:5px}.cell-matrix-title{font-size:16px}.cell-box{padding:13px 11px}.chart-card{padding:20px 16px}.chart-wrap{height:260px}}
-@media(max-width:350px){.hero-top{grid-template-columns:1fr}.soc-circle{width:145px;height:145px}.power-box{padding:8px}.hero-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.info-row{grid-template-columns:1fr}.mini-card{min-height:unset}.lower-grid{grid-template-columns:1fr}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BMS - details</title>
+
+  <script src="chart.js"></script>
+
+
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #101c2c 0%, #060b13 100%);
+      --card-bg: rgba(16, 29, 45, 0.4);
+      --card-border: 1px solid rgba(255, 255, 255, 0.05);
+      --neon-blue: #00a2ff;
+      --neon-cyan: #00f3ff;
+      --neon-green: #39e67d;
+      --neon-red: #ff4455;
+      --text-muted: #798b9c;
+    }
+    body {
+      background: var(--bg-gradient); color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0; padding: 25px; display: flex; justify-content: center; min-height: 100vh;
+    }
+    .app-container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
+    .top-header-row { display: flex; justify-content: space-between; align-items: center; }
+    .title-zone { font-size: 26px; font-weight: bold; letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
+    .connection-pill { background: rgba(0, 243, 255, 0.1); border: 1px solid rgba(0, 243, 255, 0.2); padding: 5px 12px; border-radius: 20px; font-size: 11px; color: var(--neon-cyan); font-weight: 500; font-family: monospace; }
+    .main-card { background: var(--card-bg); border: var(--card-border); border-radius: 16px; padding: 25px; backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+    .hero-layout { display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px; }
+    .gauge-wrapper { position: relative; width: 140px; height: 140px; display: flex; justify-content: center; align-items: center; }
+    .gauge-track { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 6px solid #142438; box-sizing: border-box; }
+    .gauge-fill { position: absolute; width: 100%; height: 100%; border-radius: 50%; border: 6px solid transparent; border-top-color: var(--neon-blue); border-right-color: var(--neon-blue); border-left-color: var(--neon-blue); box-sizing: border-box; transform: rotate(-45deg); filter: drop-shadow(0 0 8px rgba(0, 162, 255, 0.5)); box-sizing: border-box; }
+    .gauge-center { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .soc-num { font-size: 46px; font-weight: bold; line-height: 1; }
+    .soc-num span { font-size: 18px; font-weight: normal; color: var(--text-muted); }
+    .state-badge { font-size: 11px; font-weight: bold; color: var(--neon-green); letter-spacing: 1px; margin-top: 4px; text-transform: uppercase; }
+    .power-display { text-align: right; }
+    .power-lbl { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .power-num { font-size: 54px; font-weight: 300; color: #ffffff; line-height: 1.1; margin: 4px 0; }
+    .power-num span { font-size: 22px; font-weight: 400; color: var(--text-muted); margin-left: 2px; }
+    .time-remaining { font-size: 11px; color: var(--neon-green); background: rgba(57, 230, 125, 0.08); padding: 4px 10px; border-radius: 12px; display: inline-block; }
+    .info-grid-3x2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 20px; }
+    .info-node { display: flex; flex-direction: column; gap: 4px; }
+    .node-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .node-val { font-size: 18px; font-weight: 600; }
+    .node-val span { font-size: 12px; font-weight: normal; color: var(--text-muted); margin-left: 2px; }
+    .action-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 5px 0; }
+    .btn-action { background: #0f1b2d; border: var(--card-border); padding: 10px; border-radius: 8px; text-align: center; }
+    .btn-lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
+    .btn-status { font-size: 12px; font-weight: bold; }
+    .status-on { color: var(--neon-cyan); }
+    .status-off { color: var(--text-muted); }
+    .capsule-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .cap-card { background: var(--card-bg); border: var(--card-border); border-radius: 12px; padding: 15px; }
+    .cap-lbl { font-size: 9px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .cap-val { font-size: 15px; font-weight: bold; font-family: monospace; }
+    .split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .nested-cell-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .cell-line { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.15); padding: 10px 14px; border-radius: 8px; border: var(--card-border); }
+    .c-lbl { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    .c-val { font-size: 14px; font-weight: bold; font-family: monospace; }
+    .c-minmax { font-size: 11px; color: #ffffff; font-weight: normal; }
+    .matrix-box-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .matrix-node { border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 4px; border-left: 4px solid var(--neon-green); box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
+    .m-title { font-size: 11px; font-weight: bold; text-transform: uppercase; }
+    .m-v { font-size: 18px; font-weight: bold; font-family: monospace; }
+    .m-r { font-size: 10px; color: var(--text-muted); }
+    .border-cyan { border-left-color: var(--neon-cyan); background: rgba(0, 243, 255, 0.02); }
+    .border-green { border-left-color: var(--neon-green); background: rgba(57, 230, 125, 0.02); }
+  </style>
 </head>
 <body>
-<nav class="menu-grid"><span class="menu-item menu-active">BOARD</span><a href="history.php" class="menu-item">GRAPH</a><a href="report.php" class="menu-item">HOURLY</a><a href="report.php" class="menu-item">REPORT</a><a href="setup.php" class="menu-item">SETUP</a></nav>
-<header class="header-area"><h1 class="header-title">EC-Smart<br>BMS</h1><span class="mac-badge">MAC:<br><span id="txt_mac_addr">--:--:--:--:--:--</span></span></header>
-<section class="card-bg hero">
- <div class="hero-top"><div class="soc-wrap"><div class="soc-circle" id="circle_border"><div class="soc-inner"><span class="soc-num" id="txt_soc">--</span><span class="soc-unit">%</span><div class="charging-status" id="txt_is_charging">WAITING</div></div></div></div>
- <div class="power-box"><div class="label-text">POWER FLOW</div><div class="power-value"><span id="txt_power">--.-</span><span class="power-unit"> W</span></div><div class="flow-pill" id="txt_flow_text">Waiting for BMS data</div></div></div>
- <div class="hero-stats"><div><div class="label-text">VOLTAGE</div><div class="value-text"><span id="txt_total_volt">--.---</span><span class="value-unit"> V</span></div></div><div><div class="label-text">CURRENT</div><div class="value-text"><span id="txt_current_load">--.--</span><span class="value-unit"> A</span></div></div><div><div class="label-text">CELLS CONFIG</div><div class="value-text cyan">4 S</div></div><div><div class="label-text">BATTERY HEALTH</div><div class="value-text">100<span class="value-unit"> %</span></div></div><div><div class="label-text">BATTERY CAPACITY</div><div class="value-text"><span id="txt_capacity">--.--</span><span class="value-unit"> Ah</span></div></div><div><div class="label-text">CYCLE COUNT</div><div class="value-text" id="txt_cycle_count">--</div></div></div>
-</section>
-<div class="status-row"><div class="status-card"><div class="status-label">CHARGE</div><div class="status-value" id="txt_charge_status">--</div></div><div class="status-card"><div class="status-label">DISCHARGE</div><div class="status-value" id="txt_discharge_status">--</div></div><div class="status-card"><div class="status-label">BALANCE</div><div class="status-value off" id="txt_balance_status">UNKNOWN</div><div class="status-label" id="txt_balance_count" style="margin-top:5px">Cells ≥ 3.35 V: --</div></div></div>
-<div class="info-row"><div class="mini-card"><div class="label-text">REMAIN / FULL CAPACITY</div><div class="value-text" id="txt_remain_capacity">--.-- / --.-- Ah</div></div><div class="mini-card"><div class="label-text">CELL AVERAGE</div><div class="value-text" id="txt_avg_cell_volt">--.--- V</div></div><div class="mini-card"><div class="label-text">CELL DELTA</div><div class="value-text green" id="txt_volt_gap">--.--- V</div></div></div>
-<div class="lower-grid"><section class="card-bg lower-card"><div class="label-text">อุณหภูมิและสถานะ</div><div class="temp-item"><span class="temp-name">Board</span><span class="temp-value" id="txt_board_temp">--.- °C</span></div><div class="temp-item"><span class="temp-name">Chip</span><span class="temp-value" id="txt_chip1_temp">--.- °C</span></div><div class="temp-item"><span class="temp-name">MOS</span><span class="temp-value yellow" id="txt_mos_temp">--.- °C</span></div></section>
-<section class="card-bg lower-card"><div class="label-text">ช่วงแรงดันเซลล์</div><div class="extreme-item"><div class="extreme-head"><span class="extreme-name">MINIMUM</span><strong class="red" id="txt_lowest_cell_num">--</strong></div><div class="extreme-value" id="txt_lowest_cell_volt">--.--- V</div></div><div class="extreme-item"><div class="extreme-head"><span class="extreme-name">MAXIMUM</span><strong class="blue" id="txt_highest_cell_num">--</strong></div><div class="extreme-value" id="txt_highest_cell_volt">--.--- V</div></div></section></div>
-<section class="card-bg"><div class="label-text">CELL MATRIX</div><div class="cell-matrix-title">แรงดันและความต้านทานแต่ละเซลล์</div><div class="cell-matrix">
-<div class="cell-box"><div class="cell-name">CELL 01</div><div class="cell-voltage" id="txt_cell1">--.--- V</div><div class="cell-resistance" id="txt_cell1_resistance">WIRE -- Ω</div></div>
-<div class="cell-box"><div class="cell-name">CELL 02</div><div class="cell-voltage" id="txt_cell2">--.--- V</div><div class="cell-resistance" id="txt_cell2_resistance">WIRE -- Ω</div></div>
-<div class="cell-box"><div class="cell-name">CELL 03</div><div class="cell-voltage" id="txt_cell3">--.--- V</div><div class="cell-resistance" id="txt_cell3_resistance">WIRE -- Ω</div></div>
-<div class="cell-box"><div class="cell-name">CELL 04</div><div class="cell-voltage" id="txt_cell4">--.--- V</div><div class="cell-resistance" id="txt_cell4_resistance">WIRE -- Ω</div></div>
-</div></section>
-<section class="card-bg chart-card"><div class="label-text">CELL VOLTAGE HISTORY</div><div class="chart-heading">กราฟประวัติแรงดันแยกแต่ละเซลล์ (เรียลไทม์)</div><div class="chart-wrap"><canvas id="cellHistoryChart" aria-label="Cell voltage history chart"></canvas></div><div class="updated" id="txt_updated_at">รอข้อมูล...</div><div class="error" id="txt_error"></div></section>
+
+  <div class="app-container">
+    <div class="top-header-row">
+      <div class="title-zone">EC-Smart BMS <i class="fa-solid fa-pen"></i></div>
+      <div class="connection-pill">IP: 192.168.10.184</div>
+    </div>
+
+    <div class="main-card">
+      <div class="hero-layout">
+        <div class="gauge-wrapper">
+          <div class="gauge-track"></div>
+          <div class="gauge-fill"></div>
+          <div class="gauge-center">
+            <div class="soc-num" id="web-soc">--<span>%</span></div>
+            <div class="state-badge" id="web-state">IDLE</div>
+          </div>
+        </div>
+        <div class="power-display">
+          <div class="power-lbl">POWER FLOW</div>
+          <div class="power-num" id="web-power">0.0<span>W</span></div>
+          <div class="time-remaining" id="web-time"><i class="fa-regular fa-clock"></i> แบตเตอรี่สแตนด์บายคงที่</div>
+        </div>
+      </div>
+
+      <div class="info-grid-3x2">
+        <div class="info-node"><div class="node-lbl">VOLTAGE</div><div class="node-val" id="web-v">0.000<span>V</span></div></div>
+        <div class="info-node"><div class="node-lbl">CURRENT</div><div class="node-val" id="web-a">0.00<span>A</span></div></div>
+        <div class="info-node"><div class="node-lbl">CELLS CONFIG</div><div class="node-val" style="color: var(--neon-cyan);">4 S</div></div>
+        <div class="info-node"><div class="node-lbl">BATTERY HEALTH</div><div class="node-val">100<span>%</span></div></div>
+        <div class="info-node"><div class="node-lbl">BATTERY CAPACITY</div><div class="node-val" id="web-cap">100.00<span>Ah</span></div></div>
+        <div class="info-node"><div class="node-lbl">CYCLE COUNT</div><div class="node-val" id="web-cycle">458</div></div>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <div class="btn-action"><div class="btn-lbl">CHARGE</div><div class="btn-status status-on">ON</div></div>
+      <div class="btn-action"><div class="btn-lbl">DISCHARGE</div><div class="btn-status status-on">ON</div></div>
+      <div class="btn-action"><div class="btn-lbl">BALANCE</div><div class="btn-status status-off" id="web-balance-status">OFF</div></div>
+    </div>
+
+    <div class="capsule-row">
+      <div class="cap-card"><div class="cap-lbl">REMAIN / FULL CAPACITY</div><div class="cap-val" id="web-rem-cap">-- / -- Ah</div></div>
+      <div class="cap-card"><div class="cap-lbl">CELL AVERAGE</div><div class="cap-val" id="web-avg">0.000 V</div></div>
+      <div class="cap-card"><div class="cap-lbl">CELL DELTA</div><div class="cap-val" id="web-gap">0.000 V</div></div>
+    </div>
+
+    <div class="split-grid">
+      <div class="main-card" style="padding: 20px;">
+        <div class="power-lbl">อุณหภูมิและสถานะ</div>
+        <div class="nested-cell-list">
+          <div class="cell-line"><span class="c-lbl">Board</span><span class="c-val" id="web-t1">0.0 °C</span></div>
+          <div class="cell-line"><span class="c-lbl">Chip</span><span class="c-val" id="web-t2">0.0 °C</span></div>
+          <div class="cell-line"><span class="c-lbl">MOS</span><span class="c-val" id="web-tmos" style="color: #ff9900;">0.0 °C</span></div>
+        </div>
+      </div>
+      
+      <div class="main-card" style="padding: 20px;">
+        <div class="power-lbl">ช่วงแรงดันเซลล์</div>
+        <div class="nested-cell-list">
+          <div class="cell-line"><span class="c-lbl">MINIMUM</span><span class="c-val" style="color: var(--neon-red);" id="web-min-box">C01 <span class="c-minmax" id="web-min-v">0.000V</span></span></div>
+          <div class="cell-line"><span class="c-lbl">MAXIMUM</span><span class="c-val" style="color: var(--neon-blue);" id="web-max-box">C01 <span class="c-minmax" id="web-max-v">0.000V</span></span></div>
+        </div>
+      </div>
+    </div>
+
+<div class="main-card" style="padding: 20px;">
+    <div class="power-lbl" style="margin-bottom: 15px;">CELL MATRIX<br>
+        <span style="color: #ffffff; font-size: 14px; font-weight: bold;">แรงดันและความต้านทานแต่ละเซลล์</span>
+    </div>
+    
+    <!-- 🟢 เพิ่มกล่อง container คุมเป็นโครงข่าย Grid 2 คอลัมน์ และเว้นระยะห่าง gap 12px -->
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <div class="matrix-node border-cyan"><span class="m-title" style="color: var(--neon-cyan);">CELL 01</span><span class="m-v" id="web-c1">0.000 v</span><span class="m-r">WIRE 0.038 Ω</span></div>
+        <div class="matrix-node border-green"><span class="m-title" style="color: var(--neon-green);">CELL 02</span><span class="m-v" id="web-c2">0.000 v</span><span class="m-r">WIRE 0.031 Ω</span></div>
+        <div class="matrix-node border-green"><span class="m-title" style="color: var(--neon-green);">CELL 03</span><span class="m-v" id="web-c3">0.000 v</span><span class="m-r">WIRE 0.034 Ω</span></div>
+        <div class="matrix-node border-cyan"><span class="m-title" style="color: var(--neon-cyan);">CELL 04</span><span class="m-v" id="web-c4">0.000 v</span><span class="m-r">WIRE 0.032 Ω</span></div>
+    </div>
+</div>
+
+
+        <!-- คาร์ดสำหรับแสดงกราฟประวัติแรงดันเซลล์ -->
+<div class="main-card" style="padding: 20px; margin-top: 20px;">
+    <div class="power-lbl">CELL VOLTAGE HISTORY<br>
+        <span style="color: #8b949e; font-size: 14px; font-weight: bold;">กราฟประวัติแรงดันแยกแต่ละเซลล์ (เรียลไทม์)</span>
+    </div>
+    <!-- พื้นที่สำหรับวาดกราฟ -->
+    <div style="position: relative; height:300px; width:100%; margin-top: 15px;">
+        <canvas id="bmsHistoryChart"></canvas>
+    </div>
+</div>
+
+<div class="main-card" style="padding: 20px;">
+    <div class="power-lbl" style="margin-bottom: 15px;">BMS PROFILE<br>
+        <span style="color: #ffffff; font-size: 14px; font-weight: bold;">ข้อมูลอุปกรณ์</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <div class="matrix-node border-cyan"><span class="m-title" style="color: var(--neon-cyan);">รุ่น BMS</span><span class="profile-val" id="profile-bms-model">EC-BMS EC12S40</span></div>
+        <div class="matrix-node border-green"><span class="m-title" style="color: var(--neon-green);">Protocol</span><span class="profile-val" id="profile-protocol">Bluetooth</span></div>
+        <div class="matrix-node border-green"><span class="m-title" style="color: var(--neon-green);">ชื่ออุปกรณ์ BMS</span><span class="profile-val" id="profile-device-name">EC-Lifepo4 4S</span></div>
+        <div class="matrix-node border-cyan"><span class="m-title" style="color: var(--neon-cyan);">Firmware</span><span class="profile-val" id="profile-firmware">2.3.80</span></div>
+    </div>
+</div>
+
+
+
+    </div>
+
+
+
+<!-- มั่นใจว่ามีแท็กโหลดไลบรารีกราฟ Chart.js อยู่ด้านบนสุดด้วยนะครับพี่ -->
+<script src="chart.js"></script>
+
 <script>
-const CELL_THRESHOLD = 3.35;
-const history = {labels:[], cell1:[], cell2:[], cell3:[], cell4:[]};
-const chartColors = ['#20d9e8','#38df8b','#f3cc38','#f05268'];
-function val(v, digits=2){ if(v===null||v===undefined||v===''||!Number.isFinite(Number(v))) return '--'; return Number(v).toFixed(digits); }
-function put(id, value){const el=document.getElementById(id); if(el) el.textContent=(value===null||value===undefined||value==='')?'--':String(value);}
-function numericCell(v){ if(v===null||v===undefined||v===''||!Number.isFinite(Number(v))||Number(v)<=0) return null; return Number(v); }
-function setCell(id, v){const n=numericCell(v);put(id,n===null?'--.--- V':n.toFixed(3)+' V');return n;}
-function updateBalance(cells){const el=document.getElementById('txt_balance_status');const countEl=document.getElementById('txt_balance_count');const valid=cells.every(v=>v!==null);const count=valid?cells.filter(v=>v>=CELL_THRESHOLD).length:0;el.className='status-value';if(!valid){put('txt_balance_status','UNKNOWN');el.classList.add('balance-unknown');put('txt_balance_count','Cell data incomplete');}else if(count>=2){put('txt_balance_status','ON');el.classList.add('balance-on');put('txt_balance_count',`Cells ≥ ${CELL_THRESHOLD.toFixed(2)} V: ${count} / 4`);}else{put('txt_balance_status','OFF');el.classList.add('off');put('txt_balance_count',`Cells ≥ ${CELL_THRESHOLD.toFixed(2)} V: ${count} / 4`);}}
-function addHistory(cells){const now=new Date();history.labels.push(now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}));['cell1','cell2','cell3','cell4'].forEach((k,i)=>history[k].push(cells[i]));while(history.labels.length>30){history.labels.shift();Object.keys(history).filter(k=>k!=='labels').forEach(k=>history[k].shift());}drawChart();}
-function drawChart(){const canvas=document.getElementById('cellHistoryChart');if(!canvas)return;const rect=canvas.getBoundingClientRect();const dpr=window.devicePixelRatio||1;canvas.width=Math.max(1,Math.round(rect.width*dpr));canvas.height=Math.max(1,Math.round(rect.height*dpr));const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);const w=rect.width,h=rect.height;const pad={l:43,r:8,t:12,b:27};const pw=w-pad.l-pad.r,ph=h-pad.t-pad.b;ctx.clearRect(0,0,w,h);let all=[];['cell1','cell2','cell3','cell4'].forEach(k=>all=all.concat(history[k].filter(v=>v!==null)));if(!all.length){ctx.fillStyle='#8291a3';ctx.font='12px Arial';ctx.fillText('Waiting for cell voltage data...',pad.l, h/2);return;}let min=Math.min(...all),max=Math.max(...all);let span=Math.max(max-min,0.008);min=Math.floor((min-span*.18)*1000)/1000;max=Math.ceil((max+span*.18)*1000)/1000;const y=v=>pad.t+(max-v)/(max-min)*ph;const x=i=>pad.l+(history.labels.length<=1?pw:i/(history.labels.length-1)*pw);ctx.font='10px monospace';ctx.textAlign='right';for(let i=0;i<=4;i++){const v=max-(max-min)*i/4,yy=y(v);ctx.strokeStyle='#1b2b3b';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,yy);ctx.lineTo(w-pad.r,yy);ctx.stroke();ctx.fillStyle='#8291a3';ctx.fillText(v.toFixed(4),pad.l-6,yy+3);}for(let i=0;i<6;i++){const xx=pad.l+pw*i/5;ctx.strokeStyle='#152536';ctx.beginPath();ctx.moveTo(xx,pad.t);ctx.lineTo(xx,h-pad.b);ctx.stroke();}['cell1','cell2','cell3','cell4'].forEach((k,idx)=>{ctx.strokeStyle=chartColors[idx];ctx.lineWidth=2.2;ctx.beginPath();let started=false;history[k].forEach((v,i)=>{if(v===null){started=false;return;}if(!started){ctx.moveTo(x(i),y(v));started=true;}else ctx.lineTo(x(i),y(v));});ctx.stroke();});ctx.textAlign='left';ctx.fillStyle='#8291a3';ctx.font='9px Arial';if(history.labels.length){ctx.fillText(history.labels[0]||'',pad.l,h-8);const last=history.labels[history.labels.length-1];const tw=ctx.measureText(last||'').width;ctx.fillText(last||'',Math.max(pad.l,w-pad.r-tw),h-8);}const legendY=h-1;let lx=pad.l;['Cell 1','Cell 2','Cell 3','Cell 4'].forEach((name,i)=>{const row=i<2?0:1;const col=i%2;const xx=pad.l+col*(pw/2);const yy=legendY-((1-row)*13);ctx.strokeStyle=chartColors[i];ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(xx,yy-3);ctx.lineTo(xx+17,yy-3);ctx.stroke();ctx.fillStyle='#a4b0bf';ctx.font='10px Arial';ctx.fillText(name,xx+22,yy);});}
-async function updateBMSData(){try{const response=await fetch('get_bms_data.php',{cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);const data=await response.json();if(!data||typeof data!=='object')throw new Error('Invalid JSON response');document.getElementById('txt_error').textContent='';
-put('txt_mac_addr',data.mac_addr);put('txt_soc',val(data.soc,0));const soc=Math.max(0,Math.min(100,Number(data.soc)||0));document.getElementById('circle_border').style.setProperty('--soc',soc+'%');
-const charging=String(data.is_charging??'').toUpperCase();const isCharge=['CHARGE','CHARGING'].includes(charging);const isDischarge=['DISCHARGE','DISCHARGING'].includes(charging);put('txt_is_charging',charging||'UNKNOWN');const chargeEl=document.getElementById('txt_is_charging');chargeEl.style.color=isCharge?'#20d9e8':(isDischarge?'#f05268':'#8291a3');put('txt_power',val(data.power,1));put('txt_flow_text',data.flow_text??'');document.getElementById('txt_flow_text').style.color=isCharge?'#38df8b':'#f18b9a';
-put('txt_total_volt',val(data.total_volt,3));put('txt_current_load',val(data.current_load,2));put('txt_capacity',val(data.capacity,2));put('txt_remain_capacity',data.remain_capacity ?? `${val(data.remain_capacity,2)} / ${val(data.full_capacity??data.capacity,2)} Ah`);put('txt_avg_cell_volt',val(data.avg_cell_volt,3)+' V');put('txt_volt_gap',val(data.volt_gap,3)+' V');put('txt_board_temp',val(data.board_temp,1)+' °C');put('txt_chip1_temp',val(data.chip1_temp,1)+' °C');put('txt_mos_temp',val(data.mos_temp,1)+' °C');put('txt_cycle_count',data.cycle_count??data.cycles??'--');
-put('txt_charge_status',data.btn_charge ?? data.charge_status ?? (isCharge?'ON':'--'));put('txt_discharge_status',data.btn_discharge ?? data.discharge_status ?? (isDischarge?'ON':'--'));
-const cells=[setCell('txt_cell1',data.cell1),setCell('txt_cell2',data.cell2),setCell('txt_cell3',data.cell3),setCell('txt_cell4',data.cell4)];updateBalance(cells);
-// ใช้ค่า minimum/maximum จาก API หากมี มิฉะนั้นคำนวณจาก Cell 1-4
-const validCells=cells.map((v,i)=>({v,i})).filter(x=>x.v!==null);
-const minCell=validCells.length?validCells.reduce((a,b)=>b.v<a.v?b:a):null;
-const maxCell=validCells.length?validCells.reduce((a,b)=>b.v>a.v?b:a):null;
-const lowNum=data.lowest_cell_num ?? (minCell ? minCell.i+1 : null);
-const lowVolt=data.lowest_cell_volt ?? (minCell ? minCell.v : null);
-const highNum=data.highest_cell_num ?? (maxCell ? maxCell.i+1 : null);
-const highVolt=data.highest_cell_volt ?? (maxCell ? maxCell.v : null);
-put('txt_lowest_cell_num',lowNum!==null&&lowNum!==undefined?('C'+String(lowNum).replace(/^C/i,'')):'--');put('txt_lowest_cell_volt',lowVolt!==null&&lowVolt!==undefined?val(lowVolt,3)+' V':'--.--- V');put('txt_highest_cell_num',highNum!==null&&highNum!==undefined?('C'+String(highNum).replace(/^C/i,'')):'--');put('txt_highest_cell_volt',highVolt!==null&&highVolt!==undefined?val(highVolt,3)+' V':'--.--- V');
-['cell1','cell2','cell3','cell4'].forEach((k,i)=>{const r=data[k+'_resistance']??data['wire'+(i+1)]??data['cell'+(i+1)+'_resistance'];put(k+'_resistance',r!==undefined&&r!==null?'WIRE '+val(r,3)+' Ω':'WIRE -- Ω');});addHistory(cells);put('txt_updated_at','Updated: '+new Date().toLocaleTimeString());
-}catch(err){console.error('Error fetching BMS data:',err);document.getElementById('txt_error').textContent='ไม่สามารถโหลดข้อมูลจาก get_bms_data.php ได้: '+err.message;}}
-updateBMSData();setInterval(updateBMSData,2000);window.addEventListener('resize',drawChart);
-</script>
-</body>
-</html>
+// ====================================================================
+// 1. ประกาศตัวแปรระบบหลัก (GLOBAL VARIABLES)
+// ====================================================================
+var bmsChart = null;
+var maxDataPoints = 30; // แสดงประวัติกราฟย้อนหลัง 30 วินาทีล่าสุด
+
+// ดึงและตั้งค่าฐานการคำนวณรอบชาร์จแบตเตอรี่แท้ (Cycle Count)
+var savedCycle = localStorage.getItem('bms_true_cycle');
+var currentCycleCount = savedCycle ? parseFloat(savedCycle) : 1670.000; 
+var savedAhAccumulated = localStorage.getItem('bms_ah_accumulated');
+var ahAccumulated = savedAhAccumulated ? parseFloat(savedAhAccumulated) : 0.0;
+
+// ประกาศตัวแปรรับสเกลคาริเบรตเริ่มต้น (รอรับค่าจริงจากตารางฐานข้อมูล)
+var scaleCharge = 3.12;
+var scaleDischarge = 3.85;
+var isFirstLoadScale = true; // ล็อกสำหรับป้อนค่าเข้าช่องอินพุตครั้งแรกครั้งเดียว
+var currentBoardMac = "";    // รหัส Mac Address ประจำตัวบอร์ดในวินาทีนั้น
+
+
+// ====================================================================
+// 3. ฟังก์ชันวาดโครงสร้างกราฟเริ่มต้น (INIT HISTORY CHART)
+// ====================================================================
+function initChart() {
+    var canvasEl = document.getElementById('bmsHistoryChart');
+    if (!canvasEl) return;
+    var ctx = canvasEl.getContext('2d');
+    bmsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                { label: 'Cell 1', data: [], borderColor: '#00f0ff', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                { label: 'Cell 2', data: [], borderColor: '#00ff66', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                { label: 'Cell 3', data: [], borderColor: '#ffcc00', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+                { label: 'Cell 4', data: [], borderColor: '#ff3b3b', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: '#8b949e', font: { weight: 'bold' } } }
+            },
+            scales: {
+                x: { grid: { color: '#21262d' }, ticks: { display: false } },
+                y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }
+            }
+        }
+    });
+}
+
+// ====================================================================
+// 4. ฟังก์ชันหลักวนลูปดึงข้อมูลและกระจายค่าลงหน้าจอ (MAIN SYNC CORE)
+// ====================================================================
+function refreshBMSCore() {
+    fetch('bms_api.php')
+        .then(response => response.json())
+                .then(data => {
+            function updateText(id, text) {
+                var el = document.getElementById(id);
+                if (el) el.innerHTML = text;
+            }
+
+            if (data && !data.error) {
+                var c1 = parseFloat(data.cell1 || 0);
+                var c2 = parseFloat(data.cell2 || 0);
+                var c3 = parseFloat(data.cell3 || 0);
+                var c4 = parseFloat(data.cell4 || 0);
+                var calculatedV = c1 + c2 + c3 + c4;
+                var cap = parseFloat(data.capacity || 100);
+
+                currentBoardMac = data.mac_addr || "";
+
+                if (data.scale_charge !== undefined && data.scale_charge !== null) scaleCharge = parseFloat(data.scale_charge);
+                if (data.scale_discharge !== undefined && data.scale_discharge !== null) scaleDischarge = parseFloat(data.scale_discharge);
+
+                if (isFirstLoadScale) {
+                    if(document.getElementById('cal-charge-input')) document.getElementById('cal-charge-input').value = scaleCharge;
+                    if(document.getElementById('cal-discharge-input')) document.getElementById('cal-discharge-input').value = scaleDischarge;
+                    isFirstLoadScale = false;
+                }
+
+                var rawAmps = parseFloat(data.current_load || 0);
+                var amps = 0;
+                var isChargingStatus = false;
+
+                if (rawAmps < -0.02) {
+                    amps = Math.abs(rawAmps) / scaleCharge;
+                    isChargingStatus = true;
+                } else if (rawAmps > 0.02) {
+                    amps = (rawAmps / scaleDischarge) * -1.0;
+                    isChargingStatus = false;
+                } else {
+                    amps = 0;
+                    isChargingStatus = false;
+                }
+
+                var watts = calculatedV * Math.abs(amps);
+
+                updateText('web-soc', (data.soc || '0') + '<span>%</span>');
+                updateText('web-v', calculatedV.toFixed(3) + '<span>V</span>');
+                updateText('web-a', amps.toFixed(2) + '<span>A</span>');
+                updateText('web-power', watts.toFixed(1) + '<span>W</span>');
+                updateText('web-cap', cap.toFixed(2) + '<span>Ah</span>');
+
+                var ampHourInOneSecond = Math.abs(amps) * 1 / 3600;
+                ahAccumulated += ampHourInOneSecond;
+                var newCyclesGained = ampHourInOneSecond / (2 * cap);
+                currentCycleCount += newCyclesGained;
+                localStorage.setItem('bms_true_cycle', currentCycleCount);
+                localStorage.setItem('bms_ah_accumulated', ahAccumulated);
+
+                var displayCycle = Math.floor(currentCycleCount);
+                if (displayCycle < 1670) {
+                    displayCycle = 1670;
+                    currentCycleCount = 1670.000;
+                    localStorage.setItem('bms_true_cycle', 1670.000);
+                }
+                if (document.getElementById('web-cycle')) {
+                    document.getElementById('web-cycle').innerText = displayCycle;
+                }
+
+                var remainAh = (cap * parseInt(data.soc || 0)) / 100;
+                updateText('web-rem-cap', remainAh.toFixed(2) + ' / ' + cap.toFixed(2) + ' Ah');
+                updateText('web-avg', (calculatedV / 4).toFixed(3) + ' V');
+
+                var gap = parseFloat(data.volt_gap || 0);
+                var gapEl = document.getElementById('web-gap');
+                if (gapEl) {
+                    gapEl.innerText = gap.toFixed(3) + ' V';
+                    gapEl.style.color = gap > 0.05 ? "var(--neon-red)" : "var(--neon-green)";
+                }
+
+                var balEl = document.getElementById('web-balance-status');
+                if (balEl) {
+                    var overVoltCount = 0;
+                    if (c1 >= 3.5) overVoltCount++;
+                    if (c2 >= 3.5) overVoltCount++;
+                    if (c3 >= 3.5) overVoltCount++;
+                    if (c4 >= 3.5) overVoltCount++;
+                    if (overVoltCount >= 2) {
+                        balEl.innerText = "ON";
+                        balEl.className = "btn-status status-on";
+                    } else {
+                        balEl.innerText = "OFF";
+                        balEl.className = "btn-status status-off";
+                    }
+                }
+
+                var stEl = document.getElementById('web-state');
+                var timeEl = document.getElementById('web-time');
+                if (stEl && timeEl) {
+                    if (isChargingStatus) {
+                        stEl.innerText = "CHARGING"; 
+                        stEl.style.color = "var(--neon-green)";
+                        timeEl.innerHTML = '<i class="fa-regular fa-clock"></i> พลังงานแสงอาทิตย์กำลังชาร์จลงแบตเตอรี่';
+                        timeEl.style.color = "var(--neon-green)";
+                    } else if (amps < 0) {
+                        stEl.innerText = "DISCHARGE"; 
+                        stEl.style.color = "var(--neon-red)";
+                        timeEl.innerHTML = '<i class="fa-regular fa-clock"></i> กำลังจ่ายไฟออกใช้งานภายในบ้าน';
+                        timeEl.style.color = "var(--neon-red)";
+                    } else {
+                        stEl.innerText = "IDLE"; 
+                        stEl.style.color = "var(--text-muted)";
+                        timeEl.innerHTML = '<i class="fa-regular fa-clock"></i> แบตเตอรี่สแตนด์บายคงที่';
+                        timeEl.style.color = "var(--text-muted)";
+                    }
+                }
+
+                if (document.getElementById('web-t1')) document.getElementById('web-t1').innerText = data.board_temp ? parseFloat(data.board_temp).toFixed(1) + ' °C' : 'NA.';
+                if (document.getElementById('web-tmos')) document.getElementById('web-tmos').innerText = data.mos_temp ? parseFloat(data.mos_temp).toFixed(1) + ' °C' : 'NA.';
+
+                var minBoxEl = document.getElementById('web-min-box');
+                var minVEl = document.getElementById('web-min-v');
+                if (minBoxEl && minVEl) {
+                    minBoxEl.innerHTML = 'C0' + (data.lowest_cell_num || '1') + ' <span class="c-minmax" id="web-min-v">' + parseFloat(data.lowest_cell_volt || 0).toFixed(3) + 'V</span>';
+                }
+
+                var maxBoxEl = document.getElementById('web-max-box');
+                var maxVEl = document.getElementById('web-max-v');
+                if (maxBoxEl && maxVEl) {
+                    maxBoxEl.innerHTML = 'C0' + (data.highest_cell_num || '1') + ' <span class="c-minmax" id="web-max-v">' + parseFloat(data.highest_cell_volt || 0).toFixed(3) + 'V</span>';
+                }
+
+                updateText('web-c1', c1.toFixed(3) + ' v');
+                updateText('web-c2', c2.toFixed(3) + ' v');
+                updateText('web-c3', c3.toFixed(3) + ' v');
+                updateText('web-c4', c4.toFixed(3) + ' v');
+
+                if (bmsChart) {
+                    var now = new Date();
+                    var timeStr = now.getHours() + ':' + now.getMinutes() + ':' + now.getSeconds();
+                    bmsChart.data.labels.push(timeStr);
+                    bmsChart.data.datasets[0].data.push(c1);
+                    bmsChart.data.datasets[1].data.push(c2);
+                    bmsChart.data.datasets[2].data.push(c3);
+                    bmsChart.data.datasets[3].data.push(c4);
+
+                    if (bmsChart.data.labels.length > maxDataPoints) {
+                        bmsChart.data.labels.shift();
+                        bmsChart.data.datasets[0].data.shift();
+                        bmsChart.data.datasets[1].data.shift();
+                        bmsChart.data.datasets[2].data.shift();
+                        bmsChart.data.datasets[3].data.shift();
+                    }
+                    bmsChart.update('none');
+                }
+            }
+        }).catch(function(e) {
+            console.error("❌ เกิดข้อผิดพลาดฝั่งประมวลผลดึงค่า JavaScript:", e);
+        });
+}
+
+window.onload = function() {
+    initChart();
+    refreshBMSCore();
+    setInterval(refreshBMSCore, 1000);
+};
