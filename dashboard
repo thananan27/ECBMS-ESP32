@@ -175,7 +175,28 @@
         <div class="matrix-node border-cyan"><span class="m-title" style="color: var(--neon-cyan);">Firmware</span><span class="profile-val" id="profile-firmware">2.3.80</span></div>
     </div>
 </div>
+
+<!-- 🟢 เพิ่มกล่องกลไกปรับค่าสเกลคาริเบรทในหน้า HTML -->
+<div class="main-card" style="padding: 20px; margin-top: 20px;">
+    <div class="power-lbl">CALIBRATION SETTINGS<br>
+        <span style="color: #8b949e; font-size: 14px; font-weight: bold;">ปรับแต่งสเกลตัวหารแอมป์ (ไม่ต้องแก้โค้ดบอร์ด)</span>
+    </div>
+    <div style="display: flex; gap: 15px; align-items: center; margin-top: 15px;">
+        <div style="flex: 1;">
+            <label style="color: var(--neon-cyan); font-size: 13px; font-weight: bold; display: block; margin-bottom: 5px;">สเกลฝั่งชาร์จ (CHARGE):</label>
+            <input type="number" id="cal-charge-input" step="0.01" style="width: 100%; padding: 10px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #fff; font-weight: bold; font-size: 16px; box-sizing: border-box;">
+        </div>
+        <div style="flex: 1;">
+            <label style="color: var(--neon-red); font-size: 13px; font-weight: bold; display: block; margin-bottom: 5px;">สเกลฝั่งจ่ายไฟ (DISCHARGE):</label>
+            <input type="number" id="cal-discharge-input" step="0.01" style="width: 100%; padding: 10px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #fff; font-weight: bold; font-size: 16px; box-sizing: border-box;">
+        </div>
+        <div style="margin-top: 22px;">
+            <button onclick="saveCalibrationScales()" style="padding: 11px 20px; background: rgba(0, 255, 102, 0.15); border: 1px solid #00ff66; border-radius: 6px; color: #00ff66; font-weight: bold; font-size: 15px; cursor: pointer;">บันทึกค่า</button>
+        </div>
+    </div>
 </div>
+
+    </div>
 
 
 
@@ -289,18 +310,14 @@ function initChart() {
 // ====================================================================
 function refreshBMSCore() {
     fetch('bms_api.php')
-        .then(function(res) { 
-            return res.json(); 
-        })
-        .then(function(data) { 
-            // ฟังก์ชันช่วยยัดข้อความอย่างปลอดภัย ดักจับ ID สะกดผิดไม่ให้สคริปต์ค้าง
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
             function updateText(id, text) {
                 var el = document.getElementById(id);
                 if (el) el.innerHTML = text;
             }
 
-            if (data && !data.error) { 
-                // แกะข้อมูลพื้นฐานและแรงดันรายเซลล์จาก JSON
+            if (data && !data.error) {
                 var c1 = parseFloat(data.cell1 || 0);
                 var c2 = parseFloat(data.cell2 || 0);
                 var c3 = parseFloat(data.cell3 || 0);
@@ -308,30 +325,26 @@ function refreshBMSCore() {
                 var calculatedV = c1 + c2 + c3 + c4;
                 var cap = parseFloat(data.capacity || 100);
 
-                // บันทึกรหัส Mac Address ของบอร์ดปัจจุบันเข้าสู่ระบบกลาง
                 currentBoardMac = data.mac_addr || "";
 
-                // ดึงค่าสเกลคาริเบรตแท้ที่ส่งพ่วงมาจากตาราง bms_devices มาอัปเดตใช้งานอัตโนมัติ
                 if (data.scale_charge !== undefined && data.scale_charge !== null) scaleCharge = parseFloat(data.scale_charge);
                 if (data.scale_discharge !== undefined && data.scale_discharge !== null) scaleDischarge = parseFloat(data.scale_discharge);
 
-                // สั่งเติมตัวเลขสเกลจากฐานข้อมูลเข้าช่องกรอกอินพุตหนแรกหนเดียวตอนเปิดหน้าเว็บ
                 if (isFirstLoadScale) {
                     if(document.getElementById('cal-charge-input')) document.getElementById('cal-charge-input').value = scaleCharge;
                     if(document.getElementById('cal-discharge-input')) document.getElementById('cal-discharge-input').value = scaleDischarge;
                     isFirstLoadScale = false;
                 }
 
-                // 🧮 สมการคาริเบรตประมวลผลแอมป์ตามสเกลตัวหารที่ดึงมาจากฐานข้อมูล
                 var rawAmps = parseFloat(data.current_load || 0);
-                var amps = 0; 
+                var amps = 0;
                 var isChargingStatus = false;
 
                 if (rawAmps < -0.02) {
-                    amps = Math.abs(rawAmps) / scaleCharge; // โหมดชาร์จไฟลงแบต: พลิกค่าลบเป็นบวกแล้วหารสเกลชาร์จ
+                    amps = Math.abs(rawAmps) / scaleCharge;
                     isChargingStatus = true;
                 } else if (rawAmps > 0.02) {
-                    amps = (rawAmps / scaleDischarge) * -1.0; // โหมดดึงโหลดใช้งาน: หารสเกลจ่ายไฟแล้วติดลบตามดีไซน์
+                    amps = (rawAmps / scaleDischarge) * -1.0;
                     isChargingStatus = false;
                 } else {
                     amps = 0;
@@ -340,19 +353,16 @@ function refreshBMSCore() {
 
                 var watts = calculatedV * Math.abs(amps);
 
-                // พ่นค่าข้อมูลการจ่ายไฟหลักชุดคาริเบรตออกหน้าบอร์ด Dashboard
                 updateText('web-soc', (data.soc || '0') + '<span>%</span>');
                 updateText('web-v', calculatedV.toFixed(3) + '<span>V</span>');
                 updateText('web-a', amps.toFixed(2) + '<span>A</span>');
                 updateText('web-power', watts.toFixed(1) + '<span>W</span>');
                 updateText('web-cap', cap.toFixed(2) + '<span>Ah</span>');
 
-                // 🧮 คำนวณสะสมกระแสไฟเพื่อบันทึกรอบชาร์จแท้ (Cycle Count) บังคับล็อกฐานต่ำสุดไว้ที่ 1670 รอบ
                 var ampHourInOneSecond = Math.abs(amps) * 1 / 3600;
                 ahAccumulated += ampHourInOneSecond;
                 var newCyclesGained = ampHourInOneSecond / (2 * cap);
                 currentCycleCount += newCyclesGained;
-
                 localStorage.setItem('bms_true_cycle', currentCycleCount);
                 localStorage.setItem('bms_ah_accumulated', ahAccumulated);
 
@@ -366,12 +376,10 @@ function refreshBMSCore() {
                     document.getElementById('web-cycle').innerText = displayCycle;
                 }
 
-                // ข้อมูลความจุคงเหลือและแรงดันเฉลี่ยรายก้อน
                 var remainAh = (cap * parseInt(data.soc || 0)) / 100;
                 updateText('web-rem-cap', remainAh.toFixed(2) + ' / ' + cap.toFixed(2) + ' Ah');
                 updateText('web-avg', (calculatedV / 4).toFixed(3) + ' V');
 
-                // ผลต่างโวลต์ (CELL DELTA) พร้อมสีเตือน
                 var gap = parseFloat(data.volt_gap || 0);
                 var gapEl = document.getElementById('web-gap');
                 if (gapEl) {
@@ -379,7 +387,6 @@ function refreshBMSCore() {
                     gapEl.style.color = gap > 0.05 ? "var(--neon-red)" : "var(--neon-green)";
                 }
 
-                // คุมปุ่มสวิตช์ BALANCE อัจฉริยะ (ถ้ามีตั้งแต่ 2 เซลล์ขึ้นไป ถึง 3.5V ให้เด้งเปิดไฟสีเขียว ON ทันที)
                 var balEl = document.getElementById('web-balance-status');
                 if (balEl) {
                     var overVoltCount = 0;
@@ -387,13 +394,83 @@ function refreshBMSCore() {
                     if (c2 >= 3.5) overVoltCount++;
                     if (c3 >= 3.5) overVoltCount++;
                     if (c4 >= 3.5) overVoltCount++;
-
                     if (overVoltCount >= 2) {
-                    balEl.innerText = "ON";
-        balEl.className = "btn-status status-on";   // สลับเปิดไฟสีเขียวสด
-    } else {
-        balEl.innerText = "OFF";
-        balEl.className = "btn-status status-off";  // สลับเปิดไฟสีแดง
-    }
+                        balEl.innerText = "ON";
+                        balEl.className = "btn-status status-on";
+                    } else {
+                        balEl.innerText = "OFF";
+                        balEl.className = "btn-status status-off";
+                    }
+                }
+
+                var stEl = document.getElementById('web-state');
+                var timeEl = document.getElementById('web-time');
+                if (stEl && timeEl) {
+                    if (isChargingStatus) {
+                        stEl.innerText = "CHARGING"; 
+                        stEl.style.color = "var(--neon-green)";
+                        timeEl.innerHTML = '<i class="fa-regular fa-clock"></i> พลังงานแสงอาทิตย์กำลังชาร์จลงแบตเตอรี่';
+                        timeEl.style.color = "var(--neon-green)";
+                    } else if (amps < 0) {
+                        stEl.innerText = "DISCHARGE"; 
+                        stEl.style.color = "var(--neon-red)";
+                        timeEl.innerHTML = '<i class="fa-regular fa-clock"></i> กำลังจ่ายไฟออกใช้งานภายในบ้าน';
+                        timeEl.style.color = "var(--neon-red)";
+                    } else {
+                        stEl.innerText = "IDLE"; 
+                        stEl.style.color = "var(--text-muted)";
+                        timeEl.innerHTML = '<i class="fa-regular fa-clock"></i> แบตเตอรี่สแตนด์บายคงที่';
+                        timeEl.style.color = "var(--text-muted)";
+                    }
+                }
+
+                if (document.getElementById('web-t1')) document.getElementById('web-t1').innerText = data.board_temp ? parseFloat(data.board_temp).toFixed(1) + ' °C' : 'NA.';
+                if (document.getElementById('web-tmos')) document.getElementById('web-tmos').innerText = data.mos_temp ? parseFloat(data.mos_temp).toFixed(1) + ' °C' : 'NA.';
+
+                var minBoxEl = document.getElementById('web-min-box');
+                var minVEl = document.getElementById('web-min-v');
+                if (minBoxEl && minVEl) {
+                    minBoxEl.innerHTML = 'C0' + (data.lowest_cell_num || '1') + ' <span class="c-minmax" id="web-min-v">' + parseFloat(data.lowest_cell_volt || 0).toFixed(3) + 'V</span>';
+                }
+
+                var maxBoxEl = document.getElementById('web-max-box');
+                var maxVEl = document.getElementById('web-max-v');
+                if (maxBoxEl && maxVEl) {
+                    maxBoxEl.innerHTML = 'C0' + (data.highest_cell_num || '1') + ' <span class="c-minmax" id="web-max-v">' + parseFloat(data.highest_cell_volt || 0).toFixed(3) + 'V</span>';
+                }
+
+                updateText('web-c1', c1.toFixed(3) + ' v');
+                updateText('web-c2', c2.toFixed(3) + ' v');
+                updateText('web-c3', c3.toFixed(3) + ' v');
+                updateText('web-c4', c4.toFixed(3) + ' v');
+
+                if (bmsChart) {
+                    var now = new Date();
+                    var timeStr = now.getHours() + ':' + now.getMinutes() + ':' + now.getSeconds();
+                    bmsChart.data.labels.push(timeStr);
+                    bmsChart.data.datasets[0].data.push(c1);
+                    bmsChart.data.datasets[1].data.push(c2);
+                    bmsChart.data.datasets[2].data.push(c3);
+                    bmsChart.data.datasets[3].data.push(c4);
+
+                    if (bmsChart.data.labels.length > maxDataPoints) {
+                        bmsChart.data.labels.shift();
+                        bmsChart.data.datasets[0].data.shift();
+                        bmsChart.data.datasets[1].data.shift();
+                        bmsChart.data.datasets[2].data.shift();
+                        bmsChart.data.datasets[3].data.shift();
+                    }
+                    bmsChart.update('none');
+                }
+            }
+        }).catch(function(e) {
+            console.error("❌ เกิดข้อผิดพลาดฝั่งประมวลผลดึงค่า JavaScript:", e);
+        });
 }
-// จัดการเปลี่ยนป้ายวิ่งข้อความสถานะหลักตามพฤติกรรมการชาร์จจริงvar stEl = document.getElementById('web-state');var timeEl = document.getElementById('web-time');if (stEl && timeEl) {if (isChargingStatus) {stEl.innerText = "CHARGING"; stEl.style.color = "var(--neon-green)";timeEl.innerHTML = ' พลังงานแสงอาทิตย์กำลังชาร์จลงแบตเตอรี่';timeEl.style.color = "var(--neon-green)";} else if (amps < -0.02) {stEl.innerText = "DISCHARGE"; stEl.style.color = "var(--neon-red)";timeEl.innerHTML = ' กำลังจ่ายไฟออกใช้งานภายในบ้าน';timeEl.style.color = "var(--neon-red)";} else {stEl.innerText = "IDLE"; stEl.style.color = "var(--text-muted)";timeEl.innerHTML = ' แบตเตอรี่สแตนด์บายคงที่';timeEl.style.color = "var(--text-muted)";}}// แสดงผลอุณหภูมิ (T1 / MOS)if (document.getElementById('web-t1')) document.getElementById('web-t1').innerText = data.board_temp ? parseFloat(data.board_temp).toFixed(1) + ' °C' : 'NA.';if (document.getElementById('web-tmos')) document.getElementById('web-tmos').innerText = data.mos_temp ? parseFloat(data.mos_temp).toFixed(1) + ' °C' : 'NA.';// ช่วงแรงดันเซลล์ขีดจำกัดมิน-แมกซ์ (ขจัดคำว่า C00 เบียดกันบนหน้าจอ)var minBoxEl = document.getElementById('web-min-box');var minVEl = document.getElementById('web-min-v');if (minBoxEl && minVEl) {minBoxEl.childNodes.nodeValue = 'C0' + (data.lowest_cell_num || '0') + ' ';minVEl.innerText = parseFloat(data.lowest_cell_volt || 0).toFixed(3) + 'V';}var maxBoxEl = document.getElementById('web-max-box');var maxVEl = document.getElementById('web-max-v');if (maxBoxEl && maxVEl) {maxBoxEl.childNodes.nodeValue = 'C0' + (data.highest_cell_num || '0') + ' ';maxVEl.innerText = parseFloat(data.highest_cell_volt || 0).toFixed(3) + 'V';}// อัปเดตตัวเลขแรงดันรายเซลล์ลงกล่อง CELL MATRIX (โหมดจัดวาง 2 คอลัมน์)updateText('web-c1', c1.toFixed(3) + ' v');updateText('web-c2', c2.toFixed(3) + ' v');updateText('web-c3', c3.toFixed(3) + ' v');updateText('web-c4', c4.toFixed(3) + ' v');// ป้อนค่าเวลาเคลื่อนตัวสไลด์ลงสู่เส้นกราฟย้อนหลังสี่สีเรียลไทม์if (bmsChart) {var now = new Date();var timeStr = now.getHours() + ':' + now.getMinutes() + ':' + now.getSeconds();bmsChart.data.labels.push(timeStr);bmsChart.data.datasets[0].data.push(c1);bmsChart.data.datasets[1].data.push(c2);bmsChart.data.datasets[2].data.push(c3);bmsChart.data.datasets[3].data.push(c4);if (bmsChart.data.labels.length > maxDataPoints) {bmsChart.data.labels.shift();bmsChart.data.datasets[0].data.shift();bmsChart.data.datasets[1].data.shift();bmsChart.data.datasets[2].data.shift();bmsChart.data.datasets[3].data.shift();}bmsChart.update('none'); // เร่งสปีดประมวลผลกราฟไม่ให้กินแรม}}}).catch(function(e) {console.error("❌ เกิดข้อผิดพลาดฝั่งประมวลผลดึงค่า JavaScript:", e);});}// ====================================================================// 5. สั่งงานระบบให้เริ่มทำงานพร้อมกันทันทีเมื่อหน้าจอโหลดเสร็จสมบูรณ์// ====================================================================window.onload = function() {initChart();           // วาดโครงสร้างกราฟเปล่ารอก่อนinitCalibrationUI();   // โหลดตัวเลขเก่าเข้าสู่กล่องกรอกrefreshBMSCore();      // สั่งดึงข้อมูลรอบแรกทันทีไม่ต้องรอ 1 วินาทีsetInterval(refreshBMSCore, 1000); // ตั้งลูปดึงข้อมูลเรียลไทม์ต่อเนื่องทุกๆ 1 วินาที};
+
+window.onload = function() {
+    initChart();
+    initCalibrationUI();
+    refreshBMSCore();
+    setInterval(refreshBMSCore, 1000);
+};
