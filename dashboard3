@@ -74,14 +74,20 @@
 </head>
 <body>
 
-  <div class="app-container">
-    <div class="top-header-row">
-      <div class="title-zone">EC-Smart BMS <i class="fa-solid fa-pen"></i></div>
-      <div class="connection-pill">IP: 192.168.10.184</div>
-    </div>
+      <div class="top-header-row">
+        <div class="title-zone">EC-Smart BMS <i class="fa-solid fa-pen"></i></div>
+        <div class="connection-pill">IP: 192.168.10.184</div>
+      </div>
+      
+      <!-- 🟢 โค้ดปุ่มสลับเมนูของพี่จะมาฝังตัวคั่นกลางแนวตั้งตรงนี้เป๊ะๆ ครับพี่ -->
+      <div class="nav-tabs-row">
+        <a href="dashboard3.php" class="tab-link active"><i class="fa-solid fa-house"></i> DASHBOARD</a>
+        <a href="#" onclick="window.location.href='history.php?mac=' + currentBoardMac; return false;" class="tab-link"><i class="fa-solid fa-chart-line"></i> HISTORY</a>
+        <a href="manage.php" class="tab-link"><i class="fa-solid fa-sliders"></i> SETTING</a>
+      </div>
 
-    <div class="main-card">
-      <div class="hero-layout">
+      <div class="main-card">
+        <div class="hero-layout">
         <div class="gauge-wrapper">
           <div class="gauge-track"></div>
           <div class="gauge-fill"></div>
@@ -89,7 +95,7 @@
             <div class="soc-num" id="web-soc">--<span>%</span></div>
             <div class="state-badge" id="web-state">IDLE</div>
           </div>
-        </div>
+     <script src="chart.js"></script>   </div>
         <div class="power-display">
           <div class="power-lbl">POWER FLOW</div>
           <div class="power-num" id="web-power">0.0<span>W</span></div>
@@ -201,7 +207,7 @@
 
 
 <!-- มั่นใจว่ามีแท็กโหลดไลบรารีกราฟ Chart.js อยู่ด้านบนสุดด้วยนะครับพี่ -->
-<script src="chart.js"></script>
+<script src="https://jsdelivr.net"></script>
 
 <script>
 // ====================================================================
@@ -344,7 +350,7 @@ function refreshBMSCore() {
                     amps = Math.abs(rawAmps) / scaleCharge;
                     isChargingStatus = true;
                 } else if (rawAmps > 0.02) {
-                    amps = (rawAmps / scaleDischarge) * -1.0;
+                    amps = -(rawAmps / scaleDischarge);
                     isChargingStatus = false;
                 } else {
                     amps = 0;
